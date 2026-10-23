@@ -61,9 +61,10 @@ Future<Map<String, Object?>> _runCase(
   final id = c['id'] as String;
   final image = await _image(id, c['commonsTitle'] as String);
   final stopwatch = Stopwatch()..start();
-  Map<String, Object?> raw;
+  final Map<String, Object?> raw;
+  final Map<String, Object?> usage;
   try {
-    raw = await _generate(model, apiKey, appCheckToken, image);
+    (:raw, :usage) = await _generate(model, apiKey, appCheckToken, image);
   } catch (e) {
     return {'id': id, 'error': e.toString()};
   }
@@ -76,28 +77,34 @@ Future<Map<String, Object?>> _runCase(
   final expectedTotal = c['total'] as num?;
   final expectedItems = c['items'] as int?;
   final currency = Currency.of(c['currency'] as String);
+  // 영수증이 아닌 사진은 "영수증 아님" 판정만 본다.
+  final expectsReceipt = c['isReceipt'] as bool? ?? true;
   return {
     'id': id,
     'ms': ms,
+    'receiptOk': extraction.isReceipt == expectsReceipt,
     'multiExpected': expectedCount > 1,
     'multiOk': expectedCount > 1 ? extraction.receiptCount > 1 : null,
-    'currencyOk': receipt.currency.code == currency.code,
+    'currencyOk':
+        expectsReceipt ? receipt.currency.code == currency.code : null,
     'totalOk': expectedTotal == null
         ? null
         : receipt.totalMinor == currency.toMinor(expectedTotal),
     'itemsOk': expectedItems == null ? null : receipt.items.length == expectedItems,
-    'balanced': check.totalMatches,
+    'balanced': expectsReceipt ? check.totalMatches : null,
     'gotCurrency': receipt.currency.code,
     'gotTotal': receipt.currency.toMajor(receipt.totalMinor),
     'gotItems': receipt.items.length,
     'gotReceiptCount': extraction.receiptCount,
     'difference': receipt.currency.toMajor(check.differenceMinor),
     'warnings': extraction.warnings,
+    'usage': usage,
     'raw': raw,
   };
 }
 
-Future<Map<String, Object?>> _generate(
+/// 응답 JSON과 토큰 사용량(usageMetadata: 입력·출력·생각 토큰)을 돌려준다.
+Future<({Map<String, Object?> raw, Map<String, Object?> usage})> _generate(
     String model, String apiKey, String appCheckToken, List<int> image) async {
   final isGemini3 = model.startsWith('gemini-3');
   final body = jsonEncode({
@@ -156,7 +163,10 @@ Future<Map<String, Object?>> _generate(
           .where((p) => p['thought'] != true)
           .map((p) => p['text'] ?? '')
           .join();
-      return jsonDecode(out) as Map<String, Object?>;
+      return (
+        raw: jsonDecode(out) as Map<String, Object?>,
+        usage: Map<String, Object?>.from(json['usageMetadata'] as Map? ?? {}),
+      );
     } finally {
       client.close();
     }
@@ -252,7 +262,17 @@ void _printSummary(List<Map<String, Object?>> results) {
   final avgMs = ok.isEmpty
       ? 0
       : ok.map((r) => r['ms'] as int).reduce((a, b) => a + b) ~/ ok.length;
-  stdout.writeln('currency ${count('currencyOk')}/${total('currencyOk')}, '
+  int avgTokens(String key) => ok.isEmpty
+      ? 0
+      : ok
+              .map((r) => ((r['usage'] as Map)[key] as num?)?.toInt() ?? 0)
+              .reduce((a, b) => a + b) ~/
+          ok.length;
+  stdout.writeln('tokens per receipt: input ${avgTokens('promptTokenCount')}, '
+      'output ${avgTokens('candidatesTokenCount')}, '
+      'thinking ${avgTokens('thoughtsTokenCount')}');
+  stdout.writeln('is_receipt ${count('receiptOk')}/${total('receiptOk')}, '
+      'currency ${count('currencyOk')}/${total('currencyOk')}, '
       'total ${count('totalOk')}/${total('totalOk')}, '
       'items ${count('itemsOk')}/${total('itemsOk')}, '
       'balanced ${count('balanced')}/${total('balanced')}, '

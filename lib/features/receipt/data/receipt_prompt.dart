@@ -109,9 +109,9 @@ Rules
    - Never list subtotal, tax, service charge, tip, total, payment method, cash tendered, change or loyalty points as items.
    - `quantity`: units bought (1 for weighed items). `unit_price`: per-unit price if printed, else 0. `amount`: the line total before any item discount.
    - `name`: exactly as printed, in the original language. `name_ko`: a natural Korean name a Korean traveller would understand, written in Hangul only, never mixing in the original script (ラーメン -> 라멘, Imported Beer -> 수입 맥주, ลาบหมูคั่ว -> 돼지고기 랍). Brand names may stay in Latin letters. If `name` is already Korean, repeat it.
-6. `tax`: tax amount printed on the receipt (0 if none). `tax_included`: true if item prices already include it (Japan 内税/内消費税, EU VAT/IVA/TVA "di cui", Taiwan, most of Asia); false if it is added on top (US sales tax, Japan 外税).
+6. `tax`: tax amount printed on the receipt (0 if none). `tax_included`: true if item prices already include it (Korea 부가세, Japan 内税/内消費税, EU VAT/IVA/TVA "di cui", Taiwan, most of Asia); false if it is added on top (US sales tax, Japan 外税).
 7. `service_charge` and `tip`: amounts added on top of the items (0 if none). A suggested tip that was not charged is not a tip.
-8. `total`: the final amount paid or payable (合計, 实付, 应付金额, TOTAL, Final total, Totale complessivo ...). Not the cash tendered. If cash tendered and change are both printed, the total equals tendered minus change; use this to resolve lines whose labels and numbers are misaligned.
+8. `total`: the final amount paid or payable (合計, 实付, 应付金额, TOTAL, Final total, Totale complessivo ...). Not the cash tendered. If cash tendered and change are both printed, the total equals tendered minus change; use this to resolve lines whose labels and numbers are misaligned. Paying part of the bill with points, gift certificates or vouchers is a payment method, not a discount: the total is the full amount before it.
 9. This should hold: sum(amount - discount) + (tax if not tax_included) + service_charge + tip - discount = total. If the receipt itself does not balance, keep the printed total and explain in `warnings`.
 10. `receipt_count`: how many separate receipts are visible. Several photos can be parts of one long receipt; that is 1. If there is more than one distinct receipt, extract the most prominent complete one.
 11. `is_receipt`: false if the image is not a receipt or bill (then return no items and total 0).
@@ -120,6 +120,13 @@ Rules
 14. `merchant_name`: the store name as printed (brand plus branch if shown). `country_code`: ISO 3166-1 alpha-2, or "".
 15. `subtotal`: printed subtotal, or 0.
 16. `warnings`: short notes in Korean, written politely in 해요체, about anything uncertain or unusual (e.g. "보증금 30위안이 포함돼 있어요", "일부 금액이 가려져 있어요"). Empty if none.
+17. Korean receipts (the app is also used for trips inside Korea):
+   - Prices include 10% VAT. "과세물품가액", "과세액" or "공급가액" is the pre-tax portion and "부가세" is the tax: set `tax` to the 부가세 amount and `tax_included` to true. "면세물품가액" or "면세액" is the tax-free portion. None of these lines are items, and none is the `subtotal`.
+   - The total is labelled 합계, 합계금액, 결제금액, 받을금액, 판매금액 or 승인금액. "현금" or "받은금액" is cash tendered and "거스름(돈)" is change.
+   - Card and cash-receipt details (카드번호, 승인번호, 할부/일시불, 가맹점번호, 현금영수증, 소득공제) and earned points (포인트 적립) are not items.
+   - A card sales slip (신용카드 매출전표, 카드 영수증) usually has no item lines: return no items and the approved amount as `total`. Never invent an item.
+   - Item names often start with a brand prefix such as "롯데)" or "농심)". Keep `name` exactly as printed and repeat it in `name_ko`.
+   - Dates may be printed year-first with a two-digit year: 25.10.04 or 25/10/04 is 2025-10-04.
 ''';
 
 const String receiptUserPrompt =

@@ -262,5 +262,42 @@
   "commonsTitle": "File:Tickets de caisse de la crêperie Tante Lucie.jpg",
   "source": "https://commons.wikimedia.org/wiki/File:Tickets_de_caisse_de_la_cr%C3%AAperie_Tante_Lucie.jpg",
   "license": "Public domain"
+ },
+ {
+  "id": "kr_taebaek_restaurant",
+  "country": "KR",
+  "currency": "KRW",
+  "total": 76000,
+  "items": 5,
+  "receiptCount": 1,
+  "note": "흐린 글씨, 부가세 포함(과세물품가액+부가세), 현금영수증",
+  "commonsTitle": "File:Receipt taebaek restaurant IMG 2614 modified.jpg",
+  "source": "https://commons.wikimedia.org/wiki/File:Receipt_taebaek_restaurant_IMG_2614_modified.jpg",
+  "license": "Public domain"
+ },
+ {
+  "id": "kr_seoul_supermarket",
+  "country": "KR",
+  "currency": "KRW",
+  "total": 11400,
+  "items": 5,
+  "receiptCount": 1,
+  "note": "과세액·부가세 표기, 현금·거스름 줄",
+  "commonsTitle": "File:SK Korea tour 首爾 supermarket official receipt computer print out in Korean language only July-2013.JPG",
+  "source": "https://commons.wikimedia.org/wiki/File:SK_Korea_tour_%E9%A6%96%E7%88%BE_supermarket_official_receipt_computer_print_out_in_Korean_language_only_July-2013.JPG",
+  "license": "CC BY-SA 3.0"
+ },
+ {
+  "id": "kr_post_office",
+  "country": "KR",
+  "currency": "KRW",
+  "total": null,
+  "items": null,
+  "receiptCount": 0,
+  "note": "영수증이 아닌 사진 → is_receipt=false",
+  "commonsTitle": "File:Post office receipt (sourh korea).jpg",
+  "source": "https://commons.wikimedia.org/wiki/File:Post_office_receipt_(sourh_korea).jpg",
+  "license": "CC BY-SA 3.0",
+  "isReceipt": false
  }
 ]

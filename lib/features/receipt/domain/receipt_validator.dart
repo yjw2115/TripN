@@ -6,6 +6,8 @@ class ReceiptCheck {
     required this.differenceMinor,
     required this.toleranceMinor,
     required this.mismatchedItemIds,
+    required this.isTotalOnly,
+    required this.isBlank,
   });
 
   /// 총액 − (품목 + 세금 + 봉사료 + 팁 − 할인). 양수면 품목 쪽이 모자란다.
@@ -14,6 +16,12 @@ class ReceiptCheck {
 
   /// 수량 × 단가가 금액과 맞지 않는 품목.
   final Set<String> mismatchedItemIds;
+
+  /// 품목 없이 총액만 있는 영수증 (국내 카드 매출전표 등). 검산할 품목이 없어 경고하지 않는다.
+  final bool isTotalOnly;
+
+  /// 품목도 총액도 없는 빈 영수증 (직접 입력을 막 시작한 상태).
+  final bool isBlank;
 
   bool get totalMatches => differenceMinor.abs() <= toleranceMinor;
 
@@ -32,5 +40,7 @@ ReceiptCheck checkReceipt(Receipt receipt) {
       for (final item in receipt.items)
         if (item.hasLineMismatch) item.id,
     },
+    isTotalOnly: receipt.items.isEmpty && receipt.totalMinor > 0,
+    isBlank: receipt.items.isEmpty && receipt.totalMinor == 0,
   );
 }

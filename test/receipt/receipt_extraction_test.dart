@@ -187,6 +187,39 @@ void main() {
       expect(checkReceipt(r.receipt).totalMatches, isTrue);
     });
 
+    test('Korea: 부가세 is included in the item prices', () {
+      final r = ReceiptExtraction.fromModelJson(modelJson(
+        currency: 'KRW',
+        items: [
+          item('페퍼로니 앤 칩스', 29000, unitPrice: 29000),
+          item('토마토 파스타', 14000, unitPrice: 14000),
+          item('수제 돈가스', 13000, unitPrice: 13000),
+          item('새우 실치 필라', 14000, unitPrice: 14000),
+          item('콜라', 6000, quantity: 3, unitPrice: 2000),
+        ],
+        tax: 6906,
+        total: 76000,
+        date: '2025-10-04',
+        time: '12:33',
+      ));
+      expect(r.receipt.currency, Currency.krw);
+      expect(r.receipt.taxMinor, 6906);
+      final check = checkReceipt(r.receipt);
+      expect(check.isClean, isTrue);
+      expect(check.isTotalOnly, isFalse);
+    });
+
+    test('Korea: a card sales slip with only a total', () {
+      final r = ReceiptExtraction.fromModelJson(modelJson(
+        currency: 'KRW',
+        items: const [],
+        total: 45000,
+      ));
+      final check = checkReceipt(r.receipt);
+      expect(check.isTotalOnly, isTrue);
+      expect(check.totalMatches, isFalse);
+    });
+
     test('tolerates missing or odd fields', () {
       final r = ReceiptExtraction.fromModelJson({
         'currency': '',

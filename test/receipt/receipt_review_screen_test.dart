@@ -74,6 +74,31 @@ void main() {
     expect(find.text('기타'), findsOneWidget);
   });
 
+  testWidgets('a total-only card slip gets a neutral note, not a warning',
+      (tester) async {
+    await tester.pumpWidget(_wrap(Receipt(
+      merchantName: '스타벅스 강남점',
+      category: ExpenseCategory.cafe,
+      paidAt: DateTime(2026, 10, 23, 9, 30),
+      currency: Currency.krw,
+      items: const [],
+      totalMinor: 12500,
+    )));
+
+    expect(find.text('총액만 있는 영수증이에요'), findsOneWidget);
+    expect(find.textContaining('적어요'), findsNothing);
+    expect(find.text('12,500원 저장하기'), findsOneWidget);
+  });
+
+  testWidgets('a blank manual entry shows no check banner', (tester) async {
+    await tester.pumpWidget(_wrap(const Receipt(
+        merchantName: '', currency: Currency.krw, items: [], totalMinor: 0)));
+
+    expect(find.textContaining('품목 합계'), findsNothing);
+    expect(find.text('총액만 있는 영수증이에요'), findsNothing);
+    expect(find.text('총 결제 금액을 입력해 주세요'), findsOneWidget);
+  });
+
   testWidgets('can replace the total with the item sum', (tester) async {
     await tester.pumpWidget(_wrap(_thaiReceipt(totalMinor: 10000)));
 

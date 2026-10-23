@@ -553,9 +553,8 @@ class _Banner extends StatelessWidget {
         _icon = Icons.check_circle_rounded,
         actions = const [];
 
-  const _Banner.info({required this.body})
-      : title = null,
-        _color = AppColors.textSub,
+  const _Banner.info({this.title, required this.body})
+      : _color = AppColors.textSub,
         _background = AppColors.surface,
         _icon = Icons.info_outline_rounded,
         actions = const [];
@@ -639,6 +638,13 @@ class _CheckBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (check.isBlank) return const SizedBox.shrink();
+    if (check.isTotalOnly) {
+      return const _Banner.info(
+        title: '총액만 있는 영수증이에요',
+        body: '카드 전표처럼 품목이 없으면 총액 그대로 저장돼요. 품목별로 나누려면 품목을 추가해 주세요.',
+      );
+    }
     if (check.totalMatches) {
       return _Banner.success(
         title: check.mismatchedItemIds.isEmpty
