@@ -45,6 +45,12 @@ dart run tool/receipt_eval/eval.dart --model gemini-3.5-flash --model gemini-3.5
 
 AI Logic에 App Check가 적용돼 있어서 평가 도구도 `dart_defines.local.json`의 디버그 토큰을 쓴다.
 
-모델은 `receiptModels` 순서대로 시도하고, 한도 초과·혼잡이면 다음 모델로 넘어간다.
-무료 요금제는 `gemini-3.5-flash`, `gemini-3-flash-preview`가 모델마다 **하루 20회**뿐이라
-실제로 쓰려면 Blaze(종량제) 요금제가 필요하다. Gemini 2.5 계열은 신규 프로젝트에서 쓸 수 없다.
+인식 모델은 `receiptModels`(지금은 `gemini-3.5-flash` 하나)다. 여러 개를 두면 한도 초과·혼잡일 때 다음 모델로 넘어간다.
+실측 비용은 영수증 1장에 약 4.3원(lite 약 2.9원)이고, 2027-01-01부터 flash 단가가 두 배가 된다.
+Gemini API는 AI Studio 선불 크레딧으로 결제한다 (https://aistudio.google.com/billing).
+Gemini 2.5 계열은 신규 프로젝트에서 쓸 수 없다.
+
+## 앱 정보
+
+- 패키지 / 번들 ID: `com.preper.tripN` (Firebase 앱도 이 ID로 등록됨)
+- 앱 아이콘: `assets/icon/`, 다시 만들 때는 `tool/make_app_icon.py` → `dart run flutter_launcher_icons`

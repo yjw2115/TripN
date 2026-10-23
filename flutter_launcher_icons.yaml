@@ -1,0 +1,12 @@
+# 앱 아이콘. 원본 그림에서 만드는 방법은 tool/make_app_icon.py 참고.
+#   dart run flutter_launcher_icons
+flutter_launcher_icons:
+  image_path: "assets/icon/app_icon.png"
+  android: true
+  ios: true
+  remove_alpha_ios: true
+  min_sdk_android: 24
+  adaptive_icon_background: "assets/icon/android_background.png"
+  adaptive_icon_foreground: "assets/icon/android_foreground.png"
+  # 전경은 이미 안전 영역(66%)에 맞춰 줄여 두었다.
+  adaptive_icon_foreground_inset: 0

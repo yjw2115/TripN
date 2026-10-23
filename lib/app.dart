@@ -29,7 +29,7 @@ class TravelenApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp.router(
-      title: 'travelen',
+      title: '여행N',
       debugShowCheckedModeBanner: false,
       theme: buildAppTheme(),
       routerConfig: _router,

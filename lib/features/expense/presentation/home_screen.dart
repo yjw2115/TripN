@@ -44,7 +44,7 @@ class HomeScreen extends ConsumerWidget {
     final expenses = ref.watch(expensesProvider);
     return Scaffold(
       appBar: AppBar(
-        title: Text(trip.value?.name ?? 'travelen'),
+        title: Text(trip.value?.name ?? '여행N'),
       ),
       // Riverpod이 자동 재시도하는 동안에도 상태는 로딩이라, 오류가 있으면 먼저 보여준다.
       body: expenses.hasValue

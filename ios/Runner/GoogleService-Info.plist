@@ -9,7 +9,7 @@
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
-	<string>com.example.travelen</string>
+	<string>com.preper.tripN</string>
 	<key>PROJECT_ID</key>
 	<string>travelen-468bc</string>
 	<key>STORAGE_BUCKET</key>
@@ -25,6 +25,6 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:165646024248:ios:149bb5c7d39780c634f0cd</string>
+	<string>1:165646024248:ios:b7e5d025daacda0134f0cd</string>
 </dict>
 </plist>

@@ -52,7 +52,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyAaoH6jB0oSUXg14k6xjKcCWiPbfkzUffo',
-    appId: '1:165646024248:android:57df455d3704390834f0cd',
+    appId: '1:165646024248:android:bbaa8045f388e58834f0cd',
     messagingSenderId: '165646024248',
     projectId: 'travelen-468bc',
     storageBucket: 'travelen-468bc.firebasestorage.app',
@@ -60,11 +60,11 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyCeS_wQwsDlD2-vAYKSqi34airp4AXlNo4',
-    appId: '1:165646024248:ios:149bb5c7d39780c634f0cd',
+    appId: '1:165646024248:ios:b7e5d025daacda0134f0cd',
     messagingSenderId: '165646024248',
     projectId: 'travelen-468bc',
     storageBucket: 'travelen-468bc.firebasestorage.app',
-    iosBundleId: 'com.example.travelen',
+    iosBundleId: 'com.preper.tripN',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(

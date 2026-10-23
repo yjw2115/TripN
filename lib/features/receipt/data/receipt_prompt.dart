@@ -3,13 +3,10 @@
 /// Flutter에 의존하지 않아서 `tool/receipt_eval`에서도 그대로 가져다 쓴다.
 library;
 
-/// 영수증 인식에 쓰는 Gemini 모델을 정확도 순서로 둔다. 앞 모델이 한도 초과·혼잡이면 다음으로 넘어간다.
-/// `tool/receipt_eval` 결과(2026-10-23, 22장)로 골랐다. 무료 요금제는 모델마다 하루 호출 수가 작다.
-const List<String> receiptModels = [
-  'gemini-3.5-flash',
-  'gemini-3-flash-preview',
-  'gemini-3.5-flash-lite',
-];
+/// 영수증 인식에 쓰는 Gemini 모델. 여러 개를 두면 앞 모델이 한도 초과·혼잡일 때 다음으로 넘어간다.
+/// `tool/receipt_eval` 결과(2026-10-23, 25장)를 보고 정확도가 가장 나은 flash 하나로 고정했다.
+/// 장당 약 4.3원(lite는 약 2.9원). 2027-01-01부터 flash 단가가 두 배가 되니 그때 다시 비교한다.
+const List<String> receiptModels = ['gemini-3.5-flash'];
 
 /// LLM에 강제할 응답 JSON 스키마.
 ///
