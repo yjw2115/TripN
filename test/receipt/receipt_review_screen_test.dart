@@ -90,6 +90,26 @@ void main() {
     expect(find.text('12,500원 저장하기'), findsOneWidget);
   });
 
+  testWidgets('a VND total typed as printed ("283.500") is read as 283,500',
+      (tester) async {
+    await tester.pumpWidget(_wrap(Receipt(
+      merchantName: 'Quán Thử Nghiệm',
+      currency: Currency.of('VND'),
+      items: const [],
+      totalMinor: 0,
+    )));
+
+    await tester.tap(find.text('₫0'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), '283.500');
+    await tester.pump();
+    expect(find.textContaining('₫283,500으로 저장돼요'), findsOneWidget);
+
+    await tester.tap(find.text('확인'));
+    await tester.pumpAndSettle();
+    expect(find.text('₫283,500'), findsOneWidget);
+  });
+
   testWidgets('a blank manual entry shows no check banner', (tester) async {
     await tester.pumpWidget(_wrap(const Receipt(
         merchantName: '', currency: Currency.krw, items: [], totalMinor: 0)));

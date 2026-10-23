@@ -21,11 +21,32 @@ String formatMoneyPlain(int minor, Currency currency) {
       : major.toStringAsFixed(currency.decimals);
 }
 
-/// 사용자가 입력한 "1,234.5" 같은 문자열을 최소 단위 정수로 바꾼다.
+/// 사용자가 영수증에 적힌 그대로 입력한 금액을 최소 단위 정수로 바꾼다.
+///
+/// 나라마다 구분 기호가 달라서 통화를 보고 판단한다.
+/// - 소수점이 없는 통화(동·엔·원): "." 과 "," 은 모두 천 단위 구분이다. "130.000" → 130000
+/// - 그 밖의 통화: 마지막 구분 기호 뒤가 소수 자릿수 이하이면 소수점으로 본다.
+///   "52.77" → 52.77, "11,85" → 11.85, "1.234,56" → 1234.56, "1,234" → 1234
 int? parseMoneyInput(String input, Currency currency) {
-  final cleaned = input.replaceAll(',', '').replaceAll(' ', '').trim();
-  if (cleaned.isEmpty) return null;
-  final value = double.tryParse(cleaned);
-  if (value == null) return null;
-  return currency.toMinor(value);
+  final s = input.replaceAll(RegExp(r'\s'), '');
+  if (s.isEmpty || !RegExp(r'^[0-9.,]+$').hasMatch(s)) return null;
+  if (!s.contains(RegExp(r'[0-9]'))) return null;
+
+  var integerPart = s;
+  var fraction = '';
+  final last = s.lastIndexOf(RegExp(r'[.,]'));
+  if (currency.decimals > 0 && last >= 0) {
+    final after = s.substring(last + 1);
+    if (after.isNotEmpty && after.length <= currency.decimals) {
+      integerPart = s.substring(0, last);
+      fraction = after;
+    } else if (after.isEmpty) {
+      integerPart = s.substring(0, last); // "12." 처럼 소수점만 친 상태
+    }
+  }
+  final digits = integerPart.replaceAll(RegExp(r'[.,]'), '');
+  final major = digits.isEmpty ? 0 : int.parse(digits);
+  final minorDigits = fraction.padRight(currency.decimals, '0');
+  return major * currency.minorFactor +
+      (minorDigits.isEmpty ? 0 : int.parse(minorDigits));
 }

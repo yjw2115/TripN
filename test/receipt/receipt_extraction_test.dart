@@ -71,6 +71,33 @@ void main() {
       expect(parseMoneyInput('1,234.5', Currency.of('USD')), 123450);
       expect(parseMoneyInput('abc', Currency.of('USD')), isNull);
     });
+
+    test('reads typed amounts the way they are printed on the receipt', () {
+      final vnd = Currency.of('VND');
+      final usd = Currency.of('USD');
+      final eur = Currency.of('EUR');
+      // 소수점이 없는 통화: 점과 쉼표는 천 단위
+      expect(parseMoneyInput('130.000', vnd), 130000);
+      expect(parseMoneyInput('130,000', vnd), 130000);
+      expect(parseMoneyInput('1.283.500', vnd), 1283500);
+      expect(parseMoneyInput('12.500', Currency.krw), 12500);
+      expect(parseMoneyInput('3,010', Currency.of('JPY')), 3010);
+      // 소수 2자리 통화: 마지막 구분 기호 뒤가 1~2자리면 소수점
+      expect(parseMoneyInput('52.77', usd), 5277);
+      expect(parseMoneyInput('52,77', usd), 5277);
+      expect(parseMoneyInput('52.7', usd), 5270);
+      expect(parseMoneyInput('1,234', usd), 123400);
+      expect(parseMoneyInput('1,234.56', usd), 123456);
+      expect(parseMoneyInput('1.234,56', eur), 123456);
+      expect(parseMoneyInput('11,85', eur), 1185);
+      expect(parseMoneyInput('12.', usd), 1200);
+      expect(parseMoneyInput('.5', usd), 50);
+      expect(parseMoneyInput(' 4 300 ', Currency.krw), 4300);
+      // 숫자가 없거나 다른 기호가 섞이면 읽지 않는다
+      expect(parseMoneyInput('', usd), isNull);
+      expect(parseMoneyInput('.', usd), isNull);
+      expect(parseMoneyInput('1-2', usd), isNull);
+    });
   });
 
   group('ReceiptExtraction.fromModelJson', () {

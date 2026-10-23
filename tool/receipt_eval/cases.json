@@ -299,5 +299,17 @@
   "source": "https://commons.wikimedia.org/wiki/File:Post_office_receipt_(sourh_korea).jpg",
   "license": "CC BY-SA 3.0",
   "isReceipt": false
+ },
+ {
+  "id": "vn_print_sample",
+  "country": "VN",
+  "currency": "VND",
+  "total": 283500,
+  "items": 3,
+  "receiptCount": 1,
+  "note": "견본 영수증(print_samples.html ②): '.' 천 단위, 봉사료 5%, USD 환산 줄",
+  "commonsTitle": "",
+  "source": "tool/receipt_eval/print_samples.html",
+  "license": "견본(자체 제작)"
  }
 ]

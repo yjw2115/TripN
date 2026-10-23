@@ -177,6 +177,10 @@ Future<({Map<String, Object?> raw, Map<String, Object?> usage})> _generate(
 Future<List<int>> _image(String id, String commonsTitle) async {
   final file = File('${_dir.path}/images/$id.jpg');
   if (file.existsSync()) return file.readAsBytesSync();
+  if (commonsTitle.isEmpty) {
+    throw StateError('$id 이미지가 없어요. print_samples.html의 견본을 캡처해서 '
+        'images/$id.jpg 로 넣어 주세요.');
+  }
   final client = HttpClient()..userAgent = 'travelen-receipt-eval/0.1';
   try {
     final api = Uri.https('commons.wikimedia.org', '/w/api.php', {

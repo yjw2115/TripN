@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>여행N 테스트용 견본 영수증</title>
+<style>
+  /* 인쇄해서 잘라 쓰는 테스트용 견본 영수증. 가게·카드 정보는 모두 가짜다. */
+  @page { size: A4; margin: 10mm; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Menlo", "Hiragino Sans", "Apple SD Gothic Neo", "PingFang SC", "Thonburi", sans-serif;
+    color: #111;
+    background: #fff;
+  }
+  /* A4 한 장(여백 10mm를 뺀 190 × 277mm)에 영수증 4개를 2 × 2로 놓는다 */
+  .sheet {
+    height: 277mm;
+    display: grid;
+    grid-template-columns: repeat(2, 78mm);
+    grid-template-rows: repeat(2, 1fr);
+    justify-content: space-around;
+    align-items: center;
+    break-after: page;
+    overflow: hidden;
+  }
+  .sheet:last-child { break-after: auto; }
+  .sheet > div { break-inside: avoid; }
+  .receipt {
+    width: 78mm;
+    padding: 6mm 5mm 5mm;
+    border: 1px dashed #999;          /* 자르는 선 */
+    break-inside: avoid;
+    font-size: 10.5pt;
+    line-height: 1.45;
+  }
+  .center { text-align: center; }
+  .store { font-size: 14pt; font-weight: 700; }
+  .muted { color: #444; font-size: 9pt; }
+  .row { display: flex; justify-content: space-between; gap: 3mm; }
+  .row > span:last-child { white-space: nowrap; }
+  .sub { padding-left: 4mm; color: #333; font-size: 9.5pt; }
+  .total { font-size: 13pt; font-weight: 700; }
+  hr { border: 0; border-top: 1px dashed #333; margin: 2mm 0; }
+  .sample {
+    margin-top: 3mm;
+    text-align: center;
+    font-size: 8pt;
+    color: #666;
+    border-top: 1px solid #bbb;
+    padding-top: 1.5mm;
+  }
+  .label { font-size: 8pt; color: #888; margin-bottom: 1mm; font-family: "Apple SD Gothic Neo", sans-serif; }
+</style>
+</head>
+<body>
+<div class="sheet">
+
+  <!-- 1. 일본: 세금 포함(内税), 받은 돈·거스름돈 -->
+  <div>
+    <div class="label">① 일본 · 정답 3,010엔 / 품목 3개</div>
+    <div class="receipt">
+      <div class="center store">らーめん 試験屋</div>
+      <div class="center muted">東京都渋谷区道玄坂1-2-3<br>TEL 03-0000-0000</div>
+      <div class="center">領収書</div>
+      <div class="muted">2026年10月20日(火) 19:42 No.0123</div>
+      <hr>
+      <div>ラーメン</div>
+      <div class="row sub"><span>980 × 2</span><span>¥1,960</span></div>
+      <div class="row"><span>餃子</span><span>¥450</span></div>
+      <div class="row"><span>生ビール</span><span>¥600</span></div>
+      <hr>
+      <div class="row"><span>小計 3点</span><span>¥3,010</span></div>
+      <div class="row total"><span>合計</span><span>¥3,010</span></div>
+      <div class="row muted"><span>(10%対象</span><span>¥3,010)</span></div>
+      <div class="row muted"><span>(内消費税等</span><span>¥273)</span></div>
+      <div class="row"><span>お預り</span><span>¥5,000</span></div>
+      <div class="row"><span>お釣り</span><span>¥1,990</span></div>
+      <div class="sample">SAMPLE · 테스트용 견본 · 실제 거래 아님</div>
+    </div>
+  </div>
+
+  <!-- 2. 베트남: "." 천 단위, 봉사료, 달러 환산 함정 -->
+  <div>
+    <div class="label">② 베트남 · 정답 283,500동 / 품목 3개 / 봉사료 13,500동 (영수증의 "." 은 천 단위)</div>
+    <div class="receipt">
+      <div class="center store">Quán Thử Nghiệm</div>
+      <div class="center muted">12 Phố Hàng Bè, Hoàn Kiếm, Hà Nội<br>ĐT: 024 0000 0000</div>
+      <div class="center">HÓA ĐƠN THANH TOÁN</div>
+      <div class="muted">Ngày: 21/10/2026 12:15 · Bàn: 05</div>
+      <hr>
+      <div>Phở bò tái</div>
+      <div class="row sub"><span>2 x 65.000</span><span>130.000</span></div>
+      <div>Bún chả Hà Nội</div>
+      <div class="row sub"><span>1 x 70.000</span><span>70.000</span></div>
+      <div>Cà phê sữa đá</div>
+      <div class="row sub"><span>2 x 35.000</span><span>70.000</span></div>
+      <hr>
+      <div class="row"><span>Tạm tính</span><span>270.000</span></div>
+      <div class="row"><span>Phí phục vụ 5%</span><span>13.500</span></div>
+      <div class="row total"><span>TỔNG CỘNG</span><span>283.500 ₫</span></div>
+      <div class="row muted"><span>Quy đổi USD (tham khảo)</span><span>$11.20</span></div>
+      <div class="sample">SAMPLE · 테스트용 견본 · 실제 거래 아님</div>
+    </div>
+  </div>
+
+  <!-- 3. 태국: 태국어 품목, VAT 7% 포함 -->
+  <div>
+    <div class="label">③ 태국 · 정답 390.00바트 / 품목 3개</div>
+    <div class="receipt">
+      <div class="center store">ร้านทดสอบ</div>
+      <div class="center muted">ถ.สุขุมวิท กรุงเทพฯ<br>โทร 02-000-0000</div>
+      <div class="center">ใบเสร็จรับเงิน</div>
+      <div class="muted">22/10/2026 13:30 · โต๊ะ A3</div>
+      <hr>
+      <div class="row"><span>ข้าวผัดกุ้ง 1 × 120.00</span><span>120.00</span></div>
+      <div class="row"><span>ต้มยำกุ้ง 1 × 180.00</span><span>180.00</span></div>
+      <div class="row"><span>ชาเย็น 2 × 45.00</span><span>90.00</span></div>
+      <hr>
+      <div class="row total"><span>รวมทั้งสิ้น</span><span>390.00 บาท</span></div>
+      <div class="row muted"><span>ภาษีมูลค่าเพิ่ม 7% (รวมแล้ว)</span><span>25.51</span></div>
+      <div class="row"><span>เงินสด</span><span>500.00</span></div>
+      <div class="row"><span>เงินทอน</span><span>110.00</span></div>
+      <div class="sample">SAMPLE · 테스트용 견본 · 실제 거래 아님</div>
+    </div>
+  </div>
+
+  <!-- 4. 미국: 세금 별도 + 팁 -->
+  <div>
+    <div class="label">④ 미국 · 정답 52.77달러 / 품목 3개 / 세금 2.03 별도 / 팁 7.74</div>
+    <div class="receipt">
+      <div class="center store">TEST DINER</div>
+      <div class="center muted">100 Kalakaua Ave, Honolulu, HI 96815<br>(808) 000-0000</div>
+      <div class="muted">Server: Kai · Table 12 · 10/22/26 7:05 PM</div>
+      <hr>
+      <div class="row"><span>Loco Moco</span><span>$16.50</span></div>
+      <div class="row"><span>Garlic Shrimp Plate</span><span>$18.00</span></div>
+      <div class="row"><span>Iced Coffee</span><span>$8.50</span></div>
+      <div class="row sub"><span>2 @ $4.25</span><span></span></div>
+      <hr>
+      <div class="row"><span>Subtotal</span><span>$43.00</span></div>
+      <div class="row"><span>Tax 4.712%</span><span>$2.03</span></div>
+      <div class="row"><span>Tip (18%)</span><span>$7.74</span></div>
+      <div class="row total"><span>TOTAL</span><span>$52.77</span></div>
+      <div class="row muted"><span>VISA ****0000</span><span>APPROVED</span></div>
+      <div class="sample">SAMPLE · 테스트용 견본 · 실제 거래 아님</div>
+    </div>
+  </div>
+
+</div>
+<div class="sheet">
+
+  <!-- 5. 한국 카드 매출전표: 품목 없이 총액만 -->
+  <div>
+    <div class="label">⑤ 한국 카드 전표 · 정답 12,500원 / 품목 없음</div>
+    <div class="receipt">
+      <div class="center store">신용카드 매출전표</div>
+      <div class="center muted">(고객용)</div>
+      <hr>
+      <div class="row"><span>가맹점명</span><span>테스트카페 강남점</span></div>
+      <div class="row"><span>사업자번호</span><span>000-00-00000</span></div>
+      <div class="row"><span>카드종류</span><span>테스트카드</span></div>
+      <div class="row"><span>카드번호</span><span>0000-00**-****-0000</span></div>
+      <div class="row"><span>거래일시</span><span>2026-10-23 14:05</span></div>
+      <div class="row"><span>할부</span><span>일시불</span></div>
+      <div class="row"><span>승인번호</span><span>00000000</span></div>
+      <hr>
+      <div class="row"><span>공급가액</span><span>11,364</span></div>
+      <div class="row"><span>부가세</span><span>1,136</span></div>
+      <div class="row total"><span>합계</span><span>12,500원</span></div>
+      <div class="sample">SAMPLE · 테스트용 견본 · 실제 거래 아님</div>
+    </div>
+  </div>
+
+  <!-- 6. 한국 마트: 브랜드 접두어, 품목 할인, 포인트 결제 -->
+  <div>
+    <div class="label">⑥ 한국 마트 · 정답 12,380원 / 품목 3개 / 바나나우유 할인 800</div>
+    <div class="receipt">
+      <div class="center store">테스트마트 역삼점</div>
+      <div class="center muted">서울시 강남구 테헤란로 000<br>사업자 000-00-00000 · 02-000-0000</div>
+      <div class="muted">2026-10-23 18:20 POS 01 영수증 0042</div>
+      <hr>
+      <div class="row muted"><span>상품명 수량 단가</span><span>금액</span></div>
+      <div class="row"><span>롯데)빼빼로 2 1,700</span><span>3,400</span></div>
+      <div class="row"><span>농심)신라면5입 1 4,980</span><span>4,980</span></div>
+      <div class="row"><span>빙그레)바나나우유 3 1,600</span><span>4,800</span></div>
+      <div class="row sub"><span>[행사할인]</span><span>-800</span></div>
+      <hr>
+      <div class="row"><span>과세물품가액</span><span>11,255</span></div>
+      <div class="row"><span>부가세</span><span>1,125</span></div>
+      <div class="row total"><span>합계</span><span>12,380</span></div>
+      <div class="row"><span>포인트 사용</span><span>-1,000</span></div>
+      <div class="row"><span>신용카드</span><span>11,380</span></div>
+      <div class="sample">SAMPLE · 테스트용 견본 · 실제 거래 아님</div>
+    </div>
+  </div>
+
+  <!-- 7. 중국: 품목 할인 + 할인 합계 줄(이중 계산 함정) -->
+  <div>
+    <div class="label">⑦ 중국 · 정답 19.50위안 / 품목 3개 / 薯片 할인 1.90</div>
+    <div class="receipt">
+      <div class="center store">测试超市 静安店</div>
+      <div class="center muted">上海市静安区南京西路000号<br>客服热线: 400-000-0000</div>
+      <div class="muted">2026-10-22 20:11 收银台:03 小票号:000123</div>
+      <hr>
+      <div class="row muted"><span>商品名称 数量 单价</span><span>金额</span></div>
+      <div class="row"><span>可口可乐330ml ×2 3.50</span><span>7.00</span></div>
+      <div class="row"><span>乐事薯片 ×1 8.90</span><span>8.90</span></div>
+      <div class="row sub"><span>[会员优惠]</span><span>-1.90</span></div>
+      <div class="row"><span>康师傅方便面 ×1 5.50</span><span>5.50</span></div>
+      <hr>
+      <div class="row"><span>应付总计</span><span>21.40</span></div>
+      <div class="row"><span>优惠总计</span><span>-1.90</span></div>
+      <div class="row total"><span>实付总计</span><span>19.50</span></div>
+      <div class="row"><span>微信支付</span><span>19.50</span></div>
+      <div class="sample">SAMPLE · 테스트용 견본 · 실제 거래 아님</div>
+    </div>
+  </div>
+
+  <!-- 8. 영수증 아님: 앱이 걸러내는지 -->
+  <div>
+    <div class="label">⑧ 영수증 아님 · "영수증이 아닌 것 같아요"가 나와야 함</div>
+    <div class="receipt">
+      <div class="center store">오늘 할 일</div>
+      <hr>
+      <div>☐ 숙소 체크인 15:00</div>
+      <div>☐ 환전하기</div>
+      <div>☐ 야시장 가기</div>
+      <div>☐ 사진 찍기</div>
+      <div>☐ 기념품 사기</div>
+      <div class="sample">SAMPLE · 테스트용 견본</div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

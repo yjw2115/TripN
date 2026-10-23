@@ -100,9 +100,37 @@ class _LabeledField extends StatelessWidget {
   }
 }
 
-TextInputFormatter _moneyFormatter(Currency currency) =>
-    FilteringTextInputFormatter.allow(
-        RegExp(currency.decimals == 0 ? r'[0-9]' : r'[0-9.]'));
+/// 영수증에 적힌 그대로 칠 수 있게 숫자와 "." "," 를 모두 받는다. 해석은 [parseMoneyInput]이 통화를 보고 한다.
+final _moneyFormatter = FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'));
+const _moneyKeyboard = TextInputType.numberWithOptions(decimal: true);
+
+/// 입력한 숫자를 앱이 어떻게 읽었는지 바로 보여준다 (예: "130.000" → 130,000동).
+class _ParsedAmount extends StatelessWidget {
+  const _ParsedAmount({required this.controller, required this.currency});
+
+  final TextEditingController controller;
+  final Currency currency;
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<TextEditingValue>(
+      valueListenable: controller,
+      builder: (context, value, _) {
+        final minor = parseMoneyInput(value.text, currency);
+        final hint = currency.decimals == 0
+            ? '점(.)과 쉼표(,)는 천 단위로 읽어요'
+            : '소수점은 점(.)이나 쉼표(,)로 쳐도 돼요';
+        return Padding(
+          padding: const EdgeInsets.only(top: 6, left: 4),
+          child: Text(
+            minor == null ? hint : '${formatMoney(minor, currency)}으로 저장돼요 · $hint',
+            style: const TextStyle(fontSize: 13, color: AppColors.textHint),
+          ),
+        );
+      },
+    );
+  }
+}
 
 /// 금액 하나를 고치는 시트. 저장하면 최소 단위 정수를 돌려준다.
 Future<int?> showAmountSheet(
@@ -120,17 +148,22 @@ Future<int?> showAmountSheet(
       primaryLabel: '확인',
       onPrimary: () => Navigator.pop(
           context, parseMoneyInput(controller.text, currency) ?? 0),
-      child: TextField(
-        controller: controller,
-        autofocus: true,
-        keyboardType: TextInputType.numberWithOptions(
-            decimal: currency.decimals > 0),
-        inputFormatters: [_moneyFormatter(currency)],
-        style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
-        decoration: InputDecoration(
-          hintText: '0',
-          suffixText: currency.code,
-        ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TextField(
+            controller: controller,
+            autofocus: true,
+            keyboardType: _moneyKeyboard,
+            inputFormatters: [_moneyFormatter],
+            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
+            decoration: InputDecoration(
+              hintText: '0',
+              suffixText: currency.code,
+            ),
+          ),
+          _ParsedAmount(controller: controller, currency: currency),
+        ],
       ),
     ),
   );
@@ -213,6 +246,9 @@ class _ItemSheetState extends State<_ItemSheet> {
           ? ''
           : formatMoneyPlain(widget.item.discountMinor, widget.currency));
 
+  static double? _parseQuantity(String text) =>
+      double.tryParse(text.trim().replaceAll(',', '.'));
+
   static String _formatQuantity(double q) =>
       q == q.roundToDouble() ? q.toInt().toString() : q.toString();
 
@@ -226,7 +262,7 @@ class _ItemSheetState extends State<_ItemSheet> {
 
   /// 수량이나 단가를 바꾸면 금액을 다시 계산한다.
   void _recalculate() {
-    final quantity = double.tryParse(_quantity.text);
+    final quantity = _parseQuantity(_quantity.text);
     final unit = parseMoneyInput(_unitPrice.text, widget.currency);
     if (quantity == null || unit == null) return;
     _amount.text =
@@ -242,7 +278,7 @@ class _ItemSheetState extends State<_ItemSheet> {
       ItemEditResult.saved(widget.item.copyWith(
         nameKo: nameKo,
         name: name.isEmpty ? nameKo : name,
-        quantity: double.tryParse(_quantity.text) ?? 1,
+        quantity: _parseQuantity(_quantity.text) ?? 1,
         unitPriceMinor: parseMoneyInput(_unitPrice.text, c),
         clearUnitPrice: parseMoneyInput(_unitPrice.text, c) == null,
         amountMinor: parseMoneyInput(_amount.text, c) ?? 0,
@@ -254,7 +290,7 @@ class _ItemSheetState extends State<_ItemSheet> {
   @override
   Widget build(BuildContext context) {
     final c = widget.currency;
-    final money = TextInputType.numberWithOptions(decimal: c.decimals > 0);
+    const money = _moneyKeyboard;
     return SheetScaffold(
       title: widget.isNew ? '품목 추가' : '품목 수정',
       primaryLabel: '저장',
@@ -302,7 +338,7 @@ class _ItemSheetState extends State<_ItemSheet> {
                   child: TextField(
                     controller: _unitPrice,
                     keyboardType: money,
-                    inputFormatters: [_moneyFormatter(c)],
+                    inputFormatters: [_moneyFormatter],
                     onChanged: (_) => _recalculate(),
                     decoration: InputDecoration(suffixText: c.code),
                   ),
@@ -319,7 +355,7 @@ class _ItemSheetState extends State<_ItemSheet> {
                   child: TextField(
                     controller: _amount,
                     keyboardType: money,
-                    inputFormatters: [_moneyFormatter(c)],
+                    inputFormatters: [_moneyFormatter],
                     style: const TextStyle(fontWeight: FontWeight.w700),
                     decoration: InputDecoration(suffixText: c.code),
                   ),
@@ -332,7 +368,7 @@ class _ItemSheetState extends State<_ItemSheet> {
                   child: TextField(
                     controller: _discount,
                     keyboardType: money,
-                    inputFormatters: [_moneyFormatter(c)],
+                    inputFormatters: [_moneyFormatter],
                     decoration:
                         InputDecoration(hintText: '0', suffixText: c.code),
                   ),
