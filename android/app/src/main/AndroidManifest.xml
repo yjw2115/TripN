@@ -1,4 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 출시 빌드에서 Firebase·Gemini 호출에 필요하다 (디버그 매니페스트에만 있던 권한) -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <application
         android:label="여행N"
         android:name="${applicationName}"
