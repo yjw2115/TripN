@@ -1,0 +1,36 @@
+rules_version = '2';
+
+// 여행 멤버만 그 여행과 지출을 읽고 쓸 수 있다.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isMember(tripId) {
+      return signedIn() &&
+        request.auth.uid in get(/databases/$(database)/documents/trips/$(tripId)).data.memberIds;
+    }
+
+    match /trips/{tripId} {
+      allow read: if signedIn() && request.auth.uid in resource.data.memberIds;
+      allow create: if signedIn()
+        && request.resource.data.ownerId == request.auth.uid
+        && request.auth.uid in request.resource.data.memberIds;
+      allow update: if signedIn()
+        && request.auth.uid in resource.data.memberIds
+        && request.resource.data.ownerId == resource.data.ownerId;
+      allow delete: if signedIn() && resource.data.ownerId == request.auth.uid;
+
+      match /expenses/{expenseId} {
+        allow read, delete: if isMember(tripId);
+        allow create: if isMember(tripId)
+          && request.resource.data.createdBy == request.auth.uid
+          && request.resource.data.totalMinor is int;
+        allow update: if isMember(tripId)
+          && request.resource.data.createdBy == resource.data.createdBy
+          && request.resource.data.totalMinor is int;
+      }
+    }
+  }
+}

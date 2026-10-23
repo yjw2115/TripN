@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "165646024248",
+    "project_id": "travelen-468bc",
+    "storage_bucket": "travelen-468bc.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:165646024248:android:57df455d3704390834f0cd",
+        "android_client_info": {
+          "package_name": "com.example.travelen"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAaoH6jB0oSUXg14k6xjKcCWiPbfkzUffo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
