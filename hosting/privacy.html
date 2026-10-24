@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>여행N 개인정보처리방침</title>
+<style>
+  :root { --text: #191F28; --sub: #4E5968; --line: #E5E8EB; --green: #3F7A2A; --bg: #F7FAF4; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard", "Noto Sans KR", sans-serif;
+    line-height: 1.7;
+    word-break: keep-all;          /* 한국어는 어절 단위로 줄바꿈 */
+    overflow-wrap: anywhere;       /* 긴 영문·주소는 어디서든 줄바꿈 */
+  }
+  main { max-width: 760px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 28px; margin: 0 0 4px; }
+  .date { color: var(--sub); margin: 0 0 28px; }
+  h2 { font-size: 19px; margin: 36px 0 8px; color: var(--green); }
+  p, li { color: var(--text); }
+  ul { padding-left: 20px; }
+  table { width: 100%; table-layout: fixed; border-collapse: collapse; margin: 8px 0; background: #fff; font-size: 15px; }
+  th, td { border: 1px solid var(--line); padding: 8px 10px; text-align: left; vertical-align: top; }
+  th { background: #EEF6E8; width: 30%; }
+  .box { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>여행N 개인정보처리방침</h1>
+  <p class="date">시행일: 2026년 10월 24일</p>
+
+  <div class="box">
+    여행N(이하 "앱")은 여행 중 받은 영수증을 정리해 주는 가계부 앱입니다.
+    앱은 회원가입이나 이름·전화번호·이메일을 받지 않으며, 영수증을 인식하고 지출을 저장하는 데
+    필요한 최소한의 정보만 처리합니다.
+  </div>
+
+  <h2>1. 처리하는 정보와 목적</h2>
+  <table>
+    <tr><th>영수증 사진</th><td>사용자가 직접 찍거나 앨범에서 고른 사진만 처리합니다. 품목과 금액을 읽기 위해 Google의 Gemini API로 전송하며, 앱 운영자의 서버에는 사진을 저장하지 않습니다.</td></tr>
+    <tr><th>지출 기록</th><td>가게 이름, 지출 분류, 결제 일시, 통화, 품목명, 수량, 금액, 세금·봉사료·팁·할인 금액. 사용자가 저장한 지출을 다시 보여주고 수정·삭제할 수 있게 하기 위해 저장합니다.</td></tr>
+    <tr><th>익명 사용자 ID</th><td>로그인 없이 내 지출만 불러오기 위해 Firebase 익명 인증이 만드는 임의의 ID를 사용합니다. 이름이나 연락처와 연결되지 않습니다.</td></tr>
+    <tr><th>앱 무결성 확인 정보</th><td>정식으로 설치된 앱에서만 영수증 인식 서버를 쓸 수 있도록 Firebase App Check가 Google Play Integrity(Android) / Apple App Attest(iOS)로 기기와 앱의 무결성을 확인합니다.</td></tr>
+  </table>
+  <p>앱은 위치, 연락처, 광고 식별자를 수집하지 않으며, 광고나 사용 행태 분석 도구를 사용하지 않습니다.</p>
+
+  <h2>2. 기기 권한</h2>
+  <ul>
+    <li><strong>카메라</strong>: 영수증을 촬영할 때만 사용합니다.</li>
+    <li><strong>사진(앨범)</strong>: 사용자가 고른 영수증 사진만 읽습니다.</li>
+  </ul>
+  <p>권한을 허용하지 않아도 금액을 직접 입력해 앱을 사용할 수 있습니다.</p>
+
+  <h2>3. 처리 위탁 및 국외 이전</h2>
+  <p>앱은 아래 서비스를 이용해 정보를 처리합니다. 정보를 판매하거나 광고 목적으로 제3자에게 제공하지 않습니다.</p>
+  <table>
+    <tr><th>Google LLC — Firebase</th><td>익명 인증, 지출 기록 저장(Cloud Firestore, 서울 리전 asia-northeast3), 앱 무결성 확인(App Check)</td></tr>
+    <tr><th>Google LLC — Gemini API<br>(Firebase AI Logic)</th><td>
+      영수증 사진의 글자와 금액 인식.<br>
+      · 이전 국가: 미국 등 Google이 시설을 운영하는 국가<br>
+      · 이전 시점·방법: 사용자가 영수증 인식을 요청할 때 암호화된 통신(HTTPS)으로 전송<br>
+      · 보유 기간: Google의 Gemini API 추가 약관에 따라 정책 위반 탐지 목적으로 제한된 기간 동안만 기록되며, 유료 이용분의 요청·응답은 Google 제품 개선에 사용되지 않습니다.
+    </td></tr>
+  </table>
+  <p>국외 이전을 원하지 않으면 영수증 인식을 쓰지 않고 금액을 직접 입력하면 됩니다.</p>
+
+  <h2>4. 보유 기간과 파기</h2>
+  <ul>
+    <li>지출 기록은 사용자가 앱에서 삭제할 때까지 보관하며, 삭제하면 즉시 서버에서 지워집니다. (지출 목록에서 항목을 길게 누르면 삭제할 수 있습니다.)</li>
+    <li>앱을 삭제하면 익명 ID로 기록을 다시 불러올 수 없게 됩니다. 남아 있는 기록의 삭제를 원하면 아래 연락처로 요청해 주세요. 확인 후 지체 없이 파기합니다.</li>
+    <li>영수증 사진은 인식에만 쓰이며 앱 운영자의 서버에 보관하지 않습니다. 기기에 남은 임시 파일은 운영체제가 정리합니다.</li>
+  </ul>
+
+  <h2>5. 이용자의 권리</h2>
+  <p>이용자는 언제든지 자신의 지출 기록을 조회·수정·삭제할 수 있고, 처리 정지나 삭제를 요청할 수 있습니다. 요청은 아래 연락처로 보내 주세요.</p>
+
+  <h2>6. 안전성 확보 조치</h2>
+  <ul>
+    <li>모든 통신은 암호화(HTTPS)됩니다.</li>
+    <li>서버 보안 규칙으로 같은 여행의 구성원만 해당 지출 기록에 접근할 수 있게 제한합니다.</li>
+    <li>App Check로 정식 앱이 아닌 곳에서의 서버 호출을 차단합니다.</li>
+  </ul>
+
+  <h2>7. 아동의 개인정보</h2>
+  <p>앱은 만 14세 미만 아동을 대상으로 하지 않으며, 아동의 개인정보를 알면서 수집하지 않습니다.</p>
+
+  <h2>8. 개인정보 보호책임자 및 문의</h2>
+  <table>
+    <tr><th>책임자</th><td>하승현</td></tr>
+    <tr><th>이메일</th><td><a href="mailto:snowha9557@naver.com">snowha9557@naver.com</a></td></tr>
+  </table>
+
+  <h2>9. 방침의 변경</h2>
+  <p>앱 기능이 바뀌어 처리하는 정보가 달라지면 이 페이지를 고치고, 시행일을 새로 적어 알려드립니다.
+     앞으로 추가될 모임 정산·계좌번호 공유 기능이 출시되면 해당 내용을 이 방침에 반영합니다.</p>
+</main>
+</body>
+</html>

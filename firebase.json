@@ -1,1 +1,66 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"travelen-468bc","appId":"1:165646024248:android:57df455d3704390834f0cd","fileOutput":"android/app/google-services.json"},"buildConfigurations":{".":{"projectId":"travelen-468bc","appId":"1:165646024248:android:bbaa8045f388e58834f0cd","fileOutput":"android/app/google-services.json"}}},"ios":{"default":{"projectId":"travelen-468bc","appId":"1:165646024248:ios:149bb5c7d39780c634f0cd","uploadDebugSymbols":false,"fileOutput":"ios/Runner/GoogleService-Info.plist"},"buildConfigurations":{"Debug":{"projectId":"travelen-468bc","appId":"1:165646024248:ios:b7e5d025daacda0134f0cd","uploadDebugSymbols":false,"fileOutput":"ios/Runner/GoogleService-Info.plist"}}},"macos":{"default":{"projectId":"travelen-468bc","appId":"1:165646024248:ios:149bb5c7d39780c634f0cd","uploadDebugSymbols":false,"fileOutput":"macos/Runner/GoogleService-Info.plist"}},"dart":{"lib/firebase_options.dart":{"projectId":"travelen-468bc","configurations":{"android":"1:165646024248:android:bbaa8045f388e58834f0cd","ios":"1:165646024248:ios:b7e5d025daacda0134f0cd","web":"1:165646024248:web:e4f81047574a73e734f0cd"}}}}},"firestore":{"rules":"firestore.rules","indexes":"firestore.indexes.json"}}
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "travelen-468bc",
+          "appId": "1:165646024248:android:57df455d3704390834f0cd",
+          "fileOutput": "android/app/google-services.json"
+        },
+        "buildConfigurations": {
+          ".": {
+            "projectId": "travelen-468bc",
+            "appId": "1:165646024248:android:bbaa8045f388e58834f0cd",
+            "fileOutput": "android/app/google-services.json"
+          }
+        }
+      },
+      "ios": {
+        "default": {
+          "projectId": "travelen-468bc",
+          "appId": "1:165646024248:ios:149bb5c7d39780c634f0cd",
+          "uploadDebugSymbols": false,
+          "fileOutput": "ios/Runner/GoogleService-Info.plist"
+        },
+        "buildConfigurations": {
+          "Debug": {
+            "projectId": "travelen-468bc",
+            "appId": "1:165646024248:ios:b7e5d025daacda0134f0cd",
+            "uploadDebugSymbols": false,
+            "fileOutput": "ios/Runner/GoogleService-Info.plist"
+          }
+        }
+      },
+      "macos": {
+        "default": {
+          "projectId": "travelen-468bc",
+          "appId": "1:165646024248:ios:149bb5c7d39780c634f0cd",
+          "uploadDebugSymbols": false,
+          "fileOutput": "macos/Runner/GoogleService-Info.plist"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "travelen-468bc",
+          "configurations": {
+            "android": "1:165646024248:android:bbaa8045f388e58834f0cd",
+            "ios": "1:165646024248:ios:b7e5d025daacda0134f0cd",
+            "web": "1:165646024248:web:e4f81047574a73e734f0cd"
+          }
+        }
+      }
+    }
+  },
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "hosting": {
+    "public": "hosting",
+    "ignore": [
+      "firebase.json",
+      "**/.*"
+    ],
+    "cleanUrls": true
+  }
+}
