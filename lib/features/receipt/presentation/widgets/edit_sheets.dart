@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../../../../core/money/currency.dart';
 import '../../../../core/money/money_format.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../trip/domain/trip.dart';
 import '../../domain/receipt.dart';
 
 /// 바텀시트 공통 틀: 제목 + 내용 + 하단 버튼.
@@ -207,25 +208,33 @@ class ItemEditResult {
   final bool deleted;
 }
 
+/// [together]는 이 지출을 함께 쓴 멤버. 두 명 이상이면 품목을 같이 먹은 사람을 고를 수 있다.
 Future<ItemEditResult?> showItemSheet(
   BuildContext context, {
   required ReceiptItem item,
   required Currency currency,
   required bool isNew,
+  List<Member> together = const [],
 }) {
   return showAppSheet<ItemEditResult>(
     context,
-    (context) => _ItemSheet(item: item, currency: currency, isNew: isNew),
+    (context) => _ItemSheet(
+        item: item, currency: currency, isNew: isNew, together: together),
   );
 }
 
 class _ItemSheet extends StatefulWidget {
-  const _ItemSheet(
-      {required this.item, required this.currency, required this.isNew});
+  const _ItemSheet({
+    required this.item,
+    required this.currency,
+    required this.isNew,
+    required this.together,
+  });
 
   final ReceiptItem item;
   final Currency currency;
   final bool isNew;
+  final List<Member> together;
 
   @override
   State<_ItemSheet> createState() => _ItemSheetState();
@@ -248,6 +257,9 @@ class _ItemSheetState extends State<_ItemSheet> {
       text: widget.item.discountMinor == 0
           ? ''
           : formatMoneyPlain(widget.item.discountMinor, widget.currency));
+
+  /// 비어 있으면 함께 쓴 사람 모두.
+  late final Set<String> _who = {...widget.item.participantIds};
 
   static double? _parseQuantity(String text) =>
       double.tryParse(text.trim().replaceAll(',', '.'));
@@ -286,6 +298,13 @@ class _ItemSheetState extends State<_ItemSheet> {
         clearUnitPrice: parseMoneyInput(_unitPrice.text, c) == null,
         amountMinor: parseMoneyInput(_amount.text, c) ?? 0,
         discountMinor: parseMoneyInput(_discount.text, c) ?? 0,
+        // 함께 쓴 사람을 전부 고른 것은 "모두"와 같다.
+        participantIds: widget.together.every((m) => _who.contains(m.id))
+            ? const []
+            : [
+                for (final m in widget.together)
+                  if (_who.contains(m.id)) m.id,
+              ],
       )),
     );
   }
@@ -379,6 +398,30 @@ class _ItemSheetState extends State<_ItemSheet> {
               ),
             ],
           ),
+          if (widget.together.length > 1) ...[
+            const SizedBox(height: 12),
+            _LabeledField(
+              label: '같이 먹은 사람 (고르지 않으면 모두)',
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  ChoiceChip(
+                    label: const Text('모두'),
+                    selected: _who.isEmpty,
+                    onSelected: (_) => setState(_who.clear),
+                  ),
+                  for (final m in widget.together)
+                    FilterChip(
+                      label: Text(m.name),
+                      selected: _who.contains(m.id),
+                      onSelected: (on) => setState(
+                          () => on ? _who.add(m.id) : _who.remove(m.id)),
+                    ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );

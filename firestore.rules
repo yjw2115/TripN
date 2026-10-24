@@ -95,9 +95,10 @@ service cloud.firestore {
       allow delete: if signedIn() && resource.data.ownerId == request.auth.uid;
 
       function validMember(data) {
-        return data.keys().hasOnly(['name', 'uid', 'createdBy', 'createdAt', 'joinCode'])
+        return data.keys().hasOnly(['name', 'uid', 'createdBy', 'createdAt', 'joinCode', 'account'])
           && 'uid' in data
-          && validName(data.name);
+          && validName(data.name)
+          && (!('account' in data) || data.account is map);
       }
 
       match /members/{memberId} {

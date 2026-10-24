@@ -28,6 +28,7 @@ class ReviewArgs {
     this.imagePaths = const [],
     this.expenseId,
     this.payerId,
+    this.participantIds = const [],
     this.rate,
   });
 
@@ -41,6 +42,9 @@ class ReviewArgs {
 
   /// 저장된 지출의 결제자. 새 영수증이면 비워 두고 나로 시작한다.
   final String? payerId;
+
+  /// 저장된 지출을 함께 쓴 사람. 비어 있으면 모두.
+  final List<String> participantIds;
 
   /// 저장된 지출에 고정해 둔 환율.
   final FixedRate? rate;
@@ -60,6 +64,10 @@ class ReceiptReviewScreen extends ConsumerStatefulWidget {
 class _ReceiptReviewScreenState extends ConsumerState<ReceiptReviewScreen> {
   late Receipt _receipt = widget.args.receipt;
   late String? _payerId = widget.args.payerId;
+
+  /// 함께 쓴 사람. null이면 모두 (저장할 때 그때 멤버 전원으로 남긴다).
+  late List<String>? _together =
+      widget.args.participantIds.isEmpty ? null : widget.args.participantIds;
   bool _saving = false;
 
   Currency get _currency => _receipt.currency;
@@ -268,9 +276,32 @@ class _ReceiptReviewScreenState extends ConsumerState<ReceiptReviewScreen> {
     if (picked != null) setState(() => _payerId = picked);
   }
 
+  List<Member> _togetherMembers(List<Member> members) {
+    final ids = _together;
+    return ids == null
+        ? members
+        : [for (final m in members) if (ids.contains(m.id)) m];
+  }
+
+  Future<void> _editTogether(List<Member> members) async {
+    final picked = await showAppSheet<List<String>>(
+      context,
+      (context) => _TogetherSheet(
+          members: members,
+          initial: {for (final m in _togetherMembers(members)) m.id}),
+    );
+    if (picked == null) return;
+    setState(() => _together =
+        picked.length == members.length ? null : picked);
+  }
+
   Future<void> _editItem(ReceiptItem item, {bool isNew = false}) async {
+    final members = ref.read(membersProvider).value ?? const <Member>[];
     final result = await showItemSheet(context,
-        item: item, currency: _currency, isNew: isNew);
+        item: item,
+        currency: _currency,
+        isNew: isNew,
+        together: _togetherMembers(members));
     if (result == null) return;
     final items = [..._receipt.items];
     final index = items.indexWhere((i) => i.id == item.id);
@@ -312,6 +343,7 @@ class _ReceiptReviewScreenState extends ConsumerState<ReceiptReviewScreen> {
             tripId: trip.id,
             uid: user.uid,
             payerId: payer.id,
+            participantIds: [for (final m in _togetherMembers(members)) m.id],
             receipt: _receipt,
             expenseId: widget.args.expenseId,
             rate: rate,
@@ -369,6 +401,12 @@ class _ReceiptReviewScreenState extends ConsumerState<ReceiptReviewScreen> {
             // 혼자인 여행에서는 결제자를 고를 일이 없다.
             payerName: members.length > 1 ? payer?.name : null,
             onPayer: () => _editPayer(members, payer),
+            togetherLabel: members.length > 1
+                ? (_togetherMembers(members).length == members.length
+                    ? '모두 함께'
+                    : '${_togetherMembers(members).length}명 함께')
+                : null,
+            onTogether: () => _editTogether(members),
             krwLine: _krwLine(),
           ),
           const SizedBox(height: 12),
@@ -416,6 +454,10 @@ class _ReceiptReviewScreenState extends ConsumerState<ReceiptReviewScreen> {
                   money: _money,
                   currency: _currency,
                   hasMismatch: check.mismatchedItemIds.contains(item.id),
+                  who: [
+                    for (final m in members)
+                      if (item.participantIds.contains(m.id)) m.name,
+                  ].join('·'),
                   onTap: () => _editItem(item),
                 ),
             ],
@@ -536,6 +578,8 @@ class _HeaderCard extends StatelessWidget {
     required this.onCurrency,
     required this.payerName,
     required this.onPayer,
+    required this.togetherLabel,
+    required this.onTogether,
     required this.krwLine,
   });
 
@@ -548,6 +592,8 @@ class _HeaderCard extends StatelessWidget {
   final VoidCallback onCurrency;
   final String? payerName;
   final VoidCallback onPayer;
+  final String? togetherLabel;
+  final VoidCallback onTogether;
   final Widget? krwLine;
 
   @override
@@ -642,10 +688,68 @@ class _HeaderCard extends StatelessWidget {
                 label: '$payerName 결제',
                 onTap: onPayer,
               ),
+            if (togetherLabel != null)
+              _Pill(
+                icon: Icons.group_outlined,
+                label: togetherLabel!,
+                onTap: onTogether,
+              ),
           ],
         ),
         const SizedBox(height: 8),
       ],
+    );
+  }
+}
+
+/// 이 지출을 함께 쓴 사람을 고른다. 한 명 이상은 남아야 한다.
+class _TogetherSheet extends StatefulWidget {
+  const _TogetherSheet({required this.members, required this.initial});
+
+  final List<Member> members;
+  final Set<String> initial;
+
+  @override
+  State<_TogetherSheet> createState() => _TogetherSheetState();
+}
+
+class _TogetherSheetState extends State<_TogetherSheet> {
+  late final Set<String> _picked = {...widget.initial};
+
+  @override
+  Widget build(BuildContext context) {
+    final all = _picked.length == widget.members.length;
+    return SheetScaffold(
+      title: '누구와 함께 썼나요?',
+      primaryLabel: _picked.isEmpty ? '한 명 이상 골라 주세요' : '확인',
+      onPrimary: _picked.isEmpty
+          ? null
+          : () => Navigator.pop(context, [
+                for (final m in widget.members)
+                  if (_picked.contains(m.id)) m.id,
+              ]),
+      child: Column(
+        children: [
+          CheckboxListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('모두',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+            value: all,
+            onChanged: (_) => setState(() => all
+                ? _picked.clear()
+                : _picked.addAll(widget.members.map((m) => m.id))),
+          ),
+          for (final m in widget.members)
+            CheckboxListTile(
+              contentPadding: EdgeInsets.zero,
+              secondary: MemberAvatar(m, size: 36),
+              title: Text(m.name, style: const TextStyle(fontSize: 16)),
+              value: _picked.contains(m.id),
+              onChanged: (on) => setState(
+                  () => on == true ? _picked.add(m.id) : _picked.remove(m.id)),
+            ),
+        ],
+      ),
     );
   }
 }
@@ -873,6 +977,7 @@ class _ItemRow extends StatelessWidget {
     required this.money,
     required this.currency,
     required this.hasMismatch,
+    required this.who,
     required this.onTap,
   });
 
@@ -880,6 +985,9 @@ class _ItemRow extends StatelessWidget {
   final String Function(int) money;
   final Currency currency;
   final bool hasMismatch;
+
+  /// 같이 먹은 사람 이름. 모두면 빈 문자열.
+  final String who;
   final VoidCallback onTap;
 
   @override
@@ -918,6 +1026,23 @@ class _ItemRow extends StatelessWidget {
                       child: Text(detail,
                           style: const TextStyle(
                               fontSize: 13, color: AppColors.textHint)),
+                    ),
+                  if (who.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.person_outline_rounded,
+                              size: 14, color: AppColors.primaryDeep),
+                          const SizedBox(width: 2),
+                          Flexible(
+                            child: Text(who,
+                                style: const TextStyle(
+                                    fontSize: 13,
+                                    color: AppColors.primaryDeep)),
+                          ),
+                        ],
+                      ),
                     ),
                   if (hasMismatch)
                     const Padding(

@@ -6,6 +6,7 @@ import 'core/theme/app_theme.dart';
 import 'features/expense/presentation/home_screen.dart';
 import 'features/receipt/presentation/receipt_analyze_screen.dart';
 import 'features/receipt/presentation/receipt_review_screen.dart';
+import 'features/settlement/presentation/settlement_screen.dart';
 import 'features/trip/presentation/join_trip_screen.dart';
 import 'features/trip/presentation/trip_screen.dart';
 
@@ -23,6 +24,9 @@ final _router = GoRouter(
           ReceiptReviewScreen(args: state.extra! as ReviewArgs),
     ),
     GoRoute(path: '/trip', builder: (context, state) => const TripScreen()),
+    GoRoute(
+        path: '/settlement',
+        builder: (context, state) => const SettlementScreen()),
     GoRoute(
         path: '/join', builder: (context, state) => const JoinTripScreen()),
   ],

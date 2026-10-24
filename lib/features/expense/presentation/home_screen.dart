@@ -148,13 +148,15 @@ class _ExpenseList extends StatelessWidget {
 }
 
 /// 지출할 때 고정한 환율로 원화 합계를 보여주고, 통화별 합계는 그 아래 작게 둔다.
-class _SummaryCard extends StatelessWidget {
+/// 동행자가 있으면 정산 화면으로 가는 버튼을 둔다.
+class _SummaryCard extends ConsumerWidget {
   const _SummaryCard({required this.expenses});
 
   final List<Expense> expenses;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final hasCompanions = (ref.watch(membersProvider).value?.length ?? 0) > 1;
     final totals = <Currency, int>{};
     var krwTotal = 0;
     var withoutRate = 0;
@@ -177,8 +179,24 @@ class _SummaryCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('지출 ${expenses.length}건',
-              style: const TextStyle(fontSize: 14, color: AppColors.textSub)),
+          Row(
+            children: [
+              Text('지출 ${expenses.length}건',
+                  style:
+                      const TextStyle(fontSize: 14, color: AppColors.textSub)),
+              const Spacer(),
+              if (hasCompanions)
+                TextButton(
+                  onPressed: () => context.push('/settlement'),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    minimumSize: const Size(0, 32),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: const Text('정산하기 ›'),
+                ),
+            ],
+          ),
           const SizedBox(height: 6),
           Text(formatMoney(krwTotal, Currency.krw),
               style: const TextStyle(
@@ -284,6 +302,7 @@ class _ExpenseTile extends ConsumerWidget {
                   receipt: receipt,
                   expenseId: expense.id,
                   payerId: expense.payerId,
+                  participantIds: expense.participantIds,
                   rate: expense.rate)),
       onLongPress: () => _delete(context, ref),
     );

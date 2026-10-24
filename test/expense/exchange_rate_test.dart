@@ -163,7 +163,7 @@ void main() {
     test('the rate is fixed at save time and kept on unrelated edits',
         () async {
       await repo.saveReceipt(
-          tripId: 't1', uid: 'a', payerId: 'a', receipt: receipt, rate: rate);
+          tripId: 't1', uid: 'a', payerId: 'a', participantIds: const ['a'], receipt: receipt, rate: rate);
       final saved = await only();
       expect(saved.totalKrw, 16652);
 
@@ -171,6 +171,7 @@ void main() {
           tripId: 't1',
           uid: 'a',
           payerId: 'a',
+          participantIds: const ['a'],
           receipt: receipt.copyWith(merchantName: '돈코츠 라멘'),
           expenseId: saved.id,
           keepRate: true);
@@ -180,13 +181,14 @@ void main() {
     test('a new date without a rate clears the old one for backfill',
         () async {
       await repo.saveReceipt(
-          tripId: 't1', uid: 'a', payerId: 'a', receipt: receipt, rate: rate);
+          tripId: 't1', uid: 'a', payerId: 'a', participantIds: const ['a'], receipt: receipt, rate: rate);
       final saved = await only();
 
       await repo.saveReceipt(
           tripId: 't1',
           uid: 'a',
           payerId: 'a',
+          participantIds: const ['a'],
           receipt: receipt.copyWith(paidAt: DateTime(2026, 10, 26)),
           expenseId: saved.id);
       expect((await only()).rate, isNull);
@@ -204,6 +206,7 @@ void main() {
       tripId: 't1',
       uid: 'a',
       payerId: 'a',
+      participantIds: const ['a'],
       receipt: Receipt(
         merchantName: '라멘집',
         paidAt: DateTime(2026, 10, 23, 12),

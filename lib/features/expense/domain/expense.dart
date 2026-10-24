@@ -14,6 +14,7 @@ class Expense {
     required this.payerId,
     required this.createdBy,
     this.receipt,
+    this.participantIds = const [],
     FixedRate? rate,
   }) : _rate = rate;
 
@@ -28,6 +29,9 @@ class Expense {
   final String payerId;
   final String createdBy;
   final Receipt? receipt;
+
+  /// 이 지출을 함께 쓴 멤버 id. 저장할 때 정한다. 비어 있으면(예전 지출) 여행 멤버 전원.
+  final List<String> participantIds;
   final FixedRate? _rate;
 
   /// 지출할 때 고정한 원화 환율. 아직 못 정했으면 null (원화 지출은 언제나 1).
@@ -36,7 +40,8 @@ class Expense {
 
   int? get totalKrw => rate?.toKrw(totalMinor, currency);
 
-  /// 이 멤버가 결제자이거나 품목 참여자면 true. 멤버를 지워도 되는지 볼 때 쓴다.
+  /// 이 멤버가 결제자이거나 품목 참여자로 콕 집혀 있으면 true. 그런 멤버는 지울 수 없다.
+  /// 함께 쓴 사람([participantIds])에만 있으면 지울 때 거기서 빼면 된다.
   bool involves(String memberId) =>
       payerId == memberId ||
       (receipt?.items.any((i) => i.participantIds.contains(memberId)) ??
@@ -56,6 +61,8 @@ class Expense {
       receipt: receiptMap == null
           ? null
           : Receipt.fromMap(Map<String, Object?>.from(receiptMap)),
+      participantIds:
+          (map['participantIds'] as List?)?.cast<String>() ?? const [],
       rate: FixedRate.fromMap(map),
     );
   }

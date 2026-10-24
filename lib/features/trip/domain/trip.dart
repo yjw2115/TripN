@@ -41,11 +41,14 @@ class Trip {
 /// 앱을 쓰지 않는 사람은 이름만 있고 [uid]가 없다. 나중에 그 사람이 초대 코드로
 /// 들어와 자기 이름을 고르면 [uid]가 채워지고, 그동안의 기록이 그대로 이어진다.
 class Member {
-  const Member({required this.id, required this.name, this.uid});
+  const Member({required this.id, required this.name, this.uid, this.account});
 
   final String id;
   final String name;
   final String? uid;
+
+  /// 정산 때 돈을 받을 계좌. 여행 멤버끼리만 보인다.
+  final BankAccount? account;
 
   bool get isGuest => uid == null;
 
@@ -57,7 +60,33 @@ class Member {
         id: id,
         name: map['name'] as String? ?? '',
         uid: map['uid'] as String?,
+        account: BankAccount.fromMap(map['account'] as Map?),
       );
+}
+
+class BankAccount {
+  const BankAccount(
+      {required this.bank, required this.number, required this.holder});
+
+  final String bank;
+  final String number;
+  final String holder;
+
+  /// "카카오뱅크 3333-01-1234567 김지민"
+  String get display => [bank, number, holder].where((s) => s.isNotEmpty).join(' ');
+
+  Map<String, Object?> toMap() =>
+      {'bank': bank, 'number': number, 'holder': holder};
+
+  static BankAccount? fromMap(Map? map) {
+    final number = map?['number'] as String?;
+    if (number == null || number.isEmpty) return null;
+    return BankAccount(
+      bank: map!['bank'] as String? ?? '',
+      number: number,
+      holder: map['holder'] as String? ?? '',
+    );
+  }
 }
 
 /// 이름을 정하기 전 내 멤버 이름.

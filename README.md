@@ -82,6 +82,23 @@ firebase deploy --only functions,firestore:rules --project travelen-468bc
 
 Functions 패키지는 firebase-admin 13을 쓴다. 14는 이 맥의 Node 22.11에서 ESM 의존성(jose)을 불러오지 못한다.
 
+## 4단계: 정산
+
+```
+trips/{tripId}/members/{id}     account{bank, number, holder}   ← 받을 계좌 (여행 멤버끼리만 보임)
+trips/{tripId}/expenses/{id}    participantIds                  ← 함께 쓴 사람 (저장할 때 정함)
+  receipt.items[].participantIds                                ← 같이 먹은 사람 (비면 함께 쓴 사람 모두)
+```
+
+- 계산은 `lib/features/settlement/domain/settlement.dart`의 순수 함수 (`settle`, `sharesOf`, `allocate`).
+  - 품목이 있으면 품목마다 같이 먹은 사람끼리 나누고, 그 비율대로 지출 총액(세금·봉사료·팁·할인 포함)을 나눈다.
+  - 품목이 없으면 함께 쓴 사람끼리 똑같이 나눈다. 예전 지출(participantIds 없음)은 지금 멤버 전원.
+  - 몫의 합은 언제나 원화 총액과 같다. 남는 1원은 버린 소수점이 큰 사람부터, 같으면 결제자가 가져간다.
+  - 환율을 못 정한 지출은 빼고 건수를 보여준다.
+  - 보낼 돈은 가장 많이 보낼 사람과 받을 사람을 차례로 짝지어 최대 (인원 − 1)번으로 끝낸다.
+- 정산 화면(홈의 "정산하기"): 보낼 돈 → 금액 복사 / 계좌와 금액 복사 / 받을 계좌 등록, 각자 낸 돈·쓴 돈, 정산 요청 메시지 공유.
+- 함께 쓴 사람에만 들어 있는 동행자는 지울 수 있다 (그 지출들에서 빠짐). 결제자나 같이 먹은 사람으로 콕 집힌 동행자는 지울 수 없다.
+
 ## Firebase 설정 (travelen-468bc)
 
 1. AI Logic → 시작하기 → Gemini Developer API

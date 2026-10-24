@@ -196,6 +196,34 @@ void main() {
     expect(find.text('민수 결제'), findsOneWidget);
   });
 
+  testWidgets('with companions, items can be assigned to who had them',
+      (tester) async {
+    const seoyeon = Member(id: 'g2', name: '서연');
+    await tester.pumpWidget(_wrap(_thaiReceipt(totalMinor: 16800),
+        members: const [_me, _minsu, seoyeon]));
+    await tester.pump();
+    expect(find.text('모두 함께'), findsOneWidget);
+
+    // 함께 쓴 사람에서 서연을 빼면 품목에서도 고를 수 없다.
+    await tester.tap(find.text('모두 함께'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('서연'));
+    await tester.pump();
+    await tester.tap(find.text('확인'));
+    await tester.pumpAndSettle();
+    expect(find.text('2명 함께'), findsOneWidget);
+
+    await tester.tap(find.text('찹쌀밥'));
+    await tester.pumpAndSettle();
+    expect(find.text('서연'), findsNothing);
+    await tester.tap(find.widgetWithText(FilterChip, '민수'));
+    await tester.pump();
+    await tester.tap(find.text('저장'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('민수'), findsOneWidget); // 품목 줄에 같이 먹은 사람
+  });
+
   testWidgets('can replace the total with the item sum', (tester) async {
     await tester.pumpWidget(_wrap(_thaiReceipt(totalMinor: 10000)));
 

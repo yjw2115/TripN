@@ -143,6 +143,16 @@ describe('guest members', () => {
     await assertSucceeds(writeBatch(d).delete(doc(d, 'trips', TRIP, 'members', 'g1')).commit());
   });
 
+  test('members record a bank account for anyone, outsiders cannot', async () => {
+    await createTrip('alice');
+    await addGuest('alice', 'g1', '민수');
+    const account = { bank: '카카오뱅크', number: '3333-01-1234567', holder: '김민수' };
+    await assertSucceeds(updateDoc(doc(db('alice'), 'trips', TRIP, 'members', 'g1'), { account }));
+    await assertSucceeds(updateDoc(doc(db('alice'), 'trips', TRIP, 'members', 'alice'), { account }));
+    await assertFails(updateDoc(doc(db('alice'), 'trips', TRIP, 'members', 'g1'), { account: '3333' }));
+    await assertFails(updateDoc(doc(db('bob'), 'trips', TRIP, 'members', 'g1'), { account }));
+  });
+
   test('outsiders cannot read or add members', async () => {
     await createTrip('alice');
     await assertFails(getDocs(collection(db('bob'), 'trips', TRIP, 'members')));

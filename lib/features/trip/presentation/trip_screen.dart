@@ -10,6 +10,7 @@ import '../../../core/money/exchange_rate.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../receipt/presentation/widgets/edit_sheets.dart';
 import '../domain/trip.dart';
+import 'widgets/account_sheet.dart';
 import 'widgets/manual_rate_sheet.dart';
 import 'widgets/trip_widgets.dart';
 
@@ -144,59 +145,89 @@ class TripScreen extends ConsumerWidget {
             .addGuest(tripId: trip.id, name: name, uid: uid));
   }
 
-  /// 이름은 누구나 고칠 수 있다. 지우기는 이름만 있는 동행자이고 지출 기록에 없을 때만.
+  /// 이름과 계좌는 누구나 고칠 수 있다. 지우기는 이름만 있는 동행자이고,
+  /// 결제자나 품목을 같이 먹은 사람으로 기록되지 않았을 때만.
   Future<void> _editMember(
       BuildContext context, WidgetRef ref, Trip trip, Member member) async {
-    final delete = member.isGuest
-        ? await showAppSheet<bool>(
-            context,
-            (context) => SafeArea(
-              top: false,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  ListTile(
-                    leading: const Icon(Icons.edit_outlined),
-                    title: const Text('이름 바꾸기'),
-                    onTap: () => Navigator.pop(context, false),
-                  ),
-                  ListTile(
-                    leading:
-                        const Icon(Icons.delete_outline, color: AppColors.danger),
-                    title: const Text('삭제',
-                        style: TextStyle(color: AppColors.danger)),
-                    onTap: () => Navigator.pop(context, true),
-                  ),
-                  const SizedBox(height: 8),
-                ],
-              ),
+    final action = await showAppSheet<_MemberAction>(
+      context,
+      (context) => SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.edit_outlined),
+              title: const Text('이름 바꾸기'),
+              onTap: () => Navigator.pop(context, _MemberAction.rename),
             ),
-          )
-        : false;
-    if (delete == null || !context.mounted) return;
+            ListTile(
+              leading: const Icon(Icons.account_balance_outlined),
+              title: Text(member.account == null ? '받을 계좌 등록' : '받을 계좌 수정'),
+              subtitle: member.account == null
+                  ? null
+                  : Text(member.account!.display),
+              onTap: () => Navigator.pop(context, _MemberAction.account),
+            ),
+            if (member.isGuest)
+              ListTile(
+                leading:
+                    const Icon(Icons.delete_outline, color: AppColors.danger),
+                title: const Text('삭제',
+                    style: TextStyle(color: AppColors.danger)),
+                onTap: () => Navigator.pop(context, _MemberAction.delete),
+              ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    if (action == null || !context.mounted) return;
     final repo = ref.read(tripRepositoryProvider);
-    if (!delete) {
-      final name = await showTextSheet(context,
-          title: '이름 바꾸기', initial: member.name, maxLength: nameMaxLength);
-      if (name == null || name.isEmpty || name == member.name || !context.mounted) {
-        return;
-      }
-      reportWriteErrors(context, repo.renameMember(trip.id, member.id, name));
-      return;
+    switch (action) {
+      case _MemberAction.rename:
+        final name = await showTextSheet(context,
+            title: '이름 바꾸기', initial: member.name, maxLength: nameMaxLength);
+        if (name == null || name.isEmpty || name == member.name || !context.mounted) {
+          return;
+        }
+        reportWriteErrors(context, repo.renameMember(trip.id, member.id, name));
+      case _MemberAction.account:
+        await editAccount(context, ref, trip.id, member);
+      case _MemberAction.delete:
+        await _deleteGuest(context, ref, trip, member);
     }
+  }
+
+  Future<void> _deleteGuest(
+      BuildContext context, WidgetRef ref, Trip trip, Member member) async {
     final expenses = ref.read(expensesProvider).value ?? const [];
     if (expenses.any((e) => e.involves(member.id))) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('${member.name}님이 들어간 지출이 있어서 삭제할 수 없어요.')));
+          content: Text('${member.name}님이 결제했거나 같이 먹은 품목이 있어서 삭제할 수 없어요.')));
       return;
     }
+    final sharedIds = [
+      for (final e in expenses)
+        if (e.participantIds.contains(member.id)) e.id,
+    ];
     final confirmed = await confirmDialog(context,
         title: '${member.name}님을 삭제할까요?',
-        body: '동행자 목록에서 빠져요.',
+        body: sharedIds.isEmpty
+            ? '동행자 목록에서 빠져요.'
+            : '함께 쓴 지출 ${sharedIds.length}건에서도 빠지고, 정산을 다시 계산해요.',
         confirmLabel: '삭제',
         destructive: true);
     if (!confirmed || !context.mounted) return;
-    reportWriteErrors(context, repo.deleteMember(trip.id, member.id));
+    final expenseRepo = ref.read(expenseRepositoryProvider);
+    final repo = ref.read(tripRepositoryProvider);
+    reportWriteErrors(
+        context,
+        Future.wait([
+          if (sharedIds.isNotEmpty)
+            expenseRepo.removeParticipant(trip.id, member.id, sharedIds),
+          repo.deleteMember(trip.id, member.id),
+        ]));
   }
 
   /// 보던 여행을 먼저 다른 여행으로 바꾸고 홈으로 돌아간 뒤 지우거나 나간다.
@@ -245,6 +276,8 @@ class TripScreen extends ConsumerWidget {
     }
   }
 }
+
+enum _MemberAction { rename, account, delete }
 
 class _MemberRow extends StatelessWidget {
   const _MemberRow(

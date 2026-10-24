@@ -17,7 +17,8 @@ class InviteInfo {
 /// Firestore 구조
 ///   users/{uid}                         currentTripId
 ///   trips/{tripId}                      name, ownerId, memberUids, inviteCode, manualRates, createdAt
-///   trips/{tripId}/members/{memberId}   name, uid(이름만 있는 동행자는 null), createdBy, createdAt
+///   trips/{tripId}/members/{memberId}   name, uid(이름만 있는 동행자는 null), account{bank,number,holder},
+///                                       createdBy, createdAt
 ///   invites/{code}                      tripId, tripName, createdBy, createdAt
 ///
 /// 앱 사용자가 스스로 만든 멤버(여행을 만들거나 초대로 들어온 사람)는 문서 id가 uid다.
@@ -145,6 +146,11 @@ class TripRepository {
 
   Future<void> renameMember(String tripId, String memberId, String name) =>
       _members(tripId).doc(memberId).update({'name': name});
+
+  /// null이면 계좌를 지운다.
+  Future<void> setAccount(String tripId, String memberId, BankAccount? account) =>
+      _members(tripId).doc(memberId).update(
+          {'account': account?.toMap() ?? FieldValue.delete()});
 
   Future<void> deleteMember(String tripId, String memberId) =>
       _members(tripId).doc(memberId).delete();

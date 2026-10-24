@@ -6,7 +6,8 @@ import '../domain/expense.dart';
 
 /// Firestore 구조 (여행·멤버는 TripRepository)
 ///   trips/{tripId}/expenses/{id}      title, category, currency, totalMinor,
-///                                     paidAt, payerId(멤버 id), createdBy, receipt{...},
+///                                     paidAt, payerId(멤버 id), participantIds(함께 쓴 멤버 id),
+///                                     createdBy, receipt{...},
 ///                                     krwRate, rateSource, rateDate (지출할 때 고정한 환율)
 class ExpenseRepository {
   ExpenseRepository(this._db);
@@ -28,6 +29,7 @@ class ExpenseRepository {
     required String tripId,
     required String uid,
     required String payerId,
+    required List<String> participantIds,
     required Receipt receipt,
     String? expenseId,
     FixedRate? rate,
@@ -43,6 +45,7 @@ class ExpenseRepository {
       'paidAt': (receipt.paidAt ?? DateTime.now()).toIso8601String(),
       'receipt': receipt.toMap(),
       'payerId': payerId,
+      'participantIds': participantIds,
       ...?rate?.toMap(),
       'updatedAt': FieldValue.serverTimestamp(),
     };
@@ -68,6 +71,18 @@ class ExpenseRepository {
   /// 저장할 때 환율을 못 받았던(오프라인 등) 지출이나 예전 지출에 환율을 채운다.
   Future<void> fillRate(String tripId, String expenseId, FixedRate rate) =>
       _expenses(tripId).doc(expenseId).update(rate.toMap());
+
+  /// 멤버를 지울 때 그 사람이 함께 쓴 사람으로만 들어 있는 지출에서 뺀다.
+  Future<void> removeParticipant(
+      String tripId, String memberId, Iterable<String> expenseIds) {
+    final batch = _db.batch();
+    for (final id in expenseIds) {
+      batch.update(_expenses(tripId).doc(id), {
+        'participantIds': FieldValue.arrayRemove([memberId]),
+      });
+    }
+    return batch.commit();
+  }
 
   Future<void> deleteExpense(String tripId, String expenseId) =>
       _expenses(tripId).doc(expenseId).delete();
