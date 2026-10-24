@@ -152,8 +152,11 @@ void main() {
       expect(normalizeInviteCode('K7Q2M0'), isNull);
     });
 
-    test('the invite message ends with the code on its own line', () {
-      expect(inviteMessage('도쿄', 'K7Q2MX').split('\n').last, 'K7Q2MX');
+    test('the invite message carries the link, and the code on its own line',
+        () {
+      final lines = inviteMessage('도쿄', 'K7Q2MX').split('\n');
+      expect(lines, contains('https://travelen-468bc.web.app/join/K7Q2MX'));
+      expect(lines.last, 'K7Q2MX');
     });
   });
 

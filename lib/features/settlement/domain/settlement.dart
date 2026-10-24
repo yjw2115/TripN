@@ -180,6 +180,37 @@ List<Transfer> _transfers(List<MemberBalance> balances) {
   return transfers;
 }
 
+/// 정산 금액을 현지 화폐로도 보여줄 통화와 환율. 현지 돈으로 정산하는 일행을 위한 참고 금액이고,
+/// 복사와 정산 요청 메시지는 원화로 한다.
+class LocalCurrency {
+  const LocalCurrency({required this.currency, required this.krwPerUnit});
+
+  final Currency currency;
+
+  /// 이 여행에서 이 통화로 쓴 지출의 평균 환율 (원화 합계 ÷ 현지 화폐 합계).
+  final double krwPerUnit;
+
+  int fromKrw(int krw) => currency.toMinor(krw / krwPerUnit);
+}
+
+/// 원화가 아닌 통화를 많이 쓴 순서로. 환율을 정한 지출만 센다.
+List<LocalCurrency> localCurrenciesOf(List<Expense> expenses) {
+  final krw = <Currency, int>{};
+  final minor = <Currency, int>{};
+  for (final e in expenses) {
+    final total = e.totalKrw;
+    if (e.currency == Currency.krw || total == null || e.totalMinor <= 0) continue;
+    krw[e.currency] = (krw[e.currency] ?? 0) + total;
+    minor[e.currency] = (minor[e.currency] ?? 0) + e.totalMinor;
+  }
+  final currencies = krw.keys.toList()
+    ..sort((a, b) => krw[b]!.compareTo(krw[a]!));
+  return [
+    for (final c in currencies)
+      LocalCurrency(currency: c, krwPerUnit: krw[c]! / c.toMajor(minor[c]!)),
+  ];
+}
+
 String _won(int krw) => formatMoney(krw, Currency.krw);
 
 /// 메신저로 보낼 정산 요청. 받을 사람의 계좌가 있으면 함께 적는다.

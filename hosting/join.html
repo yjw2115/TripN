@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>여행N 여행 초대</title>
+<meta property="og:title" content="여행N 여행 초대">
+<meta property="og:description" content="링크를 누르면 여행N 앱에서 바로 여행에 참여할 수 있어요.">
+<!--
+  /join/{코드} 초대 링크가 앱으로 바로 열리지 않았을 때 보이는 페이지 (firebase.json rewrites).
+  - 앱이 있고 Universal Link·App Link가 동작하면 이 페이지는 뜨지 않는다.
+  - 카카오톡 인앱 브라우저는 Universal Link를 앱으로 넘기지 않아서, 여기서 앱 스킴(tripn://app/join/{코드})으로 연다.
+  - 앱이 없으면 코드와 설치 방법을 보여준다.
+-->
+<style>
+  :root { --text: #191F28; --sub: #4E5968; --hint: #8B95A1; --line: #E5E8EB; --green: #3F7A2A;
+          --primary: #B9E4A7; --on-primary: #213A16; --bg: #F2F4F6; --surface: #FFFFFF; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard", "Noto Sans KR", sans-serif;
+    line-height: 1.6;
+    word-break: keep-all;
+  }
+  main { max-width: 440px; margin: 0 auto; padding: 48px 16px 40px; }
+  .brand { color: var(--green); font-weight: 700; font-size: 15px; margin: 0 0 8px; }
+  h1 { font-size: 24px; margin: 0 0 8px; line-height: 1.35; }
+  .lead { color: var(--sub); margin: 0 0 24px; }
+  .card { background: var(--surface); border-radius: 20px; padding: 20px; margin-bottom: 12px; }
+  .label { color: var(--hint); font-size: 13px; margin: 0 0 4px; }
+  .code { font-size: 30px; font-weight: 700; letter-spacing: 6px; margin: 0; }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  button, .button {
+    display: block; width: 100%; border: 0; border-radius: 16px; padding: 17px 16px;
+    font: inherit; font-size: 17px; font-weight: 600; text-align: center; text-decoration: none; cursor: pointer;
+  }
+  .primary { background: var(--primary); color: var(--on-primary); margin-bottom: 12px; }
+  .secondary { background: var(--surface); color: var(--sub); }
+  .small { width: auto; padding: 8px 12px; font-size: 14px; border-radius: 10px; background: var(--bg); color: var(--sub); }
+  ol { margin: 8px 0 0; padding-left: 20px; color: var(--sub); }
+  .note { color: var(--hint); font-size: 13px; margin: 16px 4px 0; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <p class="brand">여행N</p>
+  <div id="invite">
+    <h1>여행에 초대받았어요</h1>
+    <p class="lead">여행N 앱에서 열면 바로 참여할 수 있어요. 동행자들과 지출을 함께 기록하고 정산해요.</p>
+    <a id="open" class="button primary" href="#">여행N 앱에서 열기</a>
+    <div class="card">
+      <div class="row">
+        <div>
+          <p class="label">초대 코드</p>
+          <p id="code" class="code"></p>
+        </div>
+        <button id="copy" class="small" type="button">복사</button>
+      </div>
+    </div>
+    <div class="card">
+      <p class="label">앱이 없나요?</p>
+      <ol>
+        <li id="store-android" hidden><a id="play" href="https://play.google.com/store/apps/details?id=com.preper.tripN">Play 스토어에서 여행N 설치</a></li>
+        <li id="store-other">App Store·Play 스토어에서 ‘여행N’을 검색해 설치해요.</li>
+        <li>설치한 뒤 이 링크를 다시 누르거나, 앱에서 <b>초대 코드로 참여하기</b>에 위 코드를 입력해요.</li>
+      </ol>
+    </div>
+  </div>
+  <div id="invalid" hidden>
+    <h1>초대 코드가 없는 링크예요</h1>
+    <p class="lead">받은 초대 메시지의 링크를 다시 눌러 주세요.</p>
+  </div>
+  <p class="note">초대 코드는 동행자에게만 보내 주세요. 코드를 아는 사람은 누구나 이 여행에 참여할 수 있어요.</p>
+</main>
+<script>
+(function () {
+  // 앱(lib/features/trip/domain/trip.dart normalizeInviteCode)과 같은 규칙: 6자, 헷갈리는 글자(0·O·1·I·L) 없음.
+  var match = /\/join\/([A-Za-z0-9-]+)/.exec(location.pathname);
+  var code = match ? match[1].toUpperCase().replace(/-/g, '') : '';
+  if (!/^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{6}$/.test(code)) {
+    document.getElementById('invite').hidden = true;
+    document.getElementById('invalid').hidden = false;
+    return;
+  }
+  document.getElementById('code').textContent = code;
+
+  var ua = navigator.userAgent;
+  var isAndroid = /Android/i.test(ua);
+  var isKakao = /KAKAOTALK/i.test(ua);
+  var appUrl = isAndroid
+    ? 'intent://app/join/' + code + '#Intent;scheme=tripn;package=com.preper.tripN;end'
+    : 'tripn://app/join/' + code;
+  document.getElementById('open').href = appUrl;
+  if (isAndroid) {
+    document.getElementById('store-android').hidden = false;
+    document.getElementById('store-other').hidden = true;
+  }
+
+  document.getElementById('copy').addEventListener('click', function () {
+    var button = this;
+    var done = function () { button.textContent = '복사했어요'; };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(code).then(done, function () {});
+    }
+  });
+
+  // 카카오톡 인앱 브라우저는 Universal Link·App Link를 앱으로 넘기지 않으니 한 번 바로 연다.
+  // 다른 브라우저에서 이 페이지가 보였다면 앱이 없을 가능성이 커서, 오류 창이 뜨지 않게 버튼만 둔다.
+  if (isKakao) location.href = appUrl;
+})();
+</script>
+</body>
+</html>

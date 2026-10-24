@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:travelen/app_providers.dart';
 import 'package:travelen/core/money/currency.dart';
+import 'package:travelen/core/money/exchange_rate.dart';
 import 'package:travelen/features/expense/domain/expense.dart';
 import 'package:travelen/features/receipt/domain/receipt.dart';
 import 'package:travelen/features/settlement/domain/settlement.dart';
@@ -38,12 +39,13 @@ final _expenses = [
   _expense('m', 30000, ['m', 's']),
 ];
 
-Widget _app() => ProviderScope(
+Widget _app([List<Expense>? expenses]) => ProviderScope(
       overrides: [
         currentTripProvider.overrideWith((ref) async => const Trip(
             id: 't', name: '도쿄 여행', ownerId: 'u1', memberUids: ['u1'])),
         membersProvider.overrideWith((ref) => Stream.value(_members)),
-        expensesProvider.overrideWith((ref) => Stream.value(_expenses)),
+        expensesProvider
+            .overrideWith((ref) => Stream.value(expenses ?? _expenses)),
       ],
       child: const MaterialApp(
         locale: Locale('ko'),
@@ -86,6 +88,70 @@ void main() {
 
     expect(copied, '카카오뱅크 3333-01-1234567 김지민 45,000원');
     expect(find.text('계좌와 금액을 복사했어요'), findsOneWidget);
+  });
+
+  group('local currency', () {
+    // 도쿄: 엔화 지출 18,000엔(100엔 = 900원) + 원화 지출
+    final jpy = Expense(
+      id: 'ramen',
+      title: '라멘',
+      category: ExpenseCategory.food,
+      currency: Currency.of('JPY'),
+      totalMinor: 18000,
+      paidAt: DateTime(2026, 10, 23),
+      payerId: 'j',
+      createdBy: 'u1',
+      participantIds: const ['j', 'm', 's'],
+      rate: const FixedRate(krwPerUnit: 9, source: RateSource.koreaexim),
+    );
+    final tokyo = [jpy, _expense('m', 30000, ['m', 's'])];
+
+    test('the most spent foreign currency comes first at its average rate', () {
+      final thb = Expense(
+        id: 'tuktuk',
+        title: '툭툭',
+        category: ExpenseCategory.transport,
+        currency: Currency.of('THB'),
+        totalMinor: 10000, // ฿100
+        paidAt: DateTime(2026, 10, 23),
+        payerId: 'j',
+        createdBy: 'u1',
+        rate: const FixedRate(krwPerUnit: 40, source: RateSource.koreaexim),
+      );
+      final options = localCurrenciesOf([thb, ...tokyo]);
+      expect([for (final o in options) o.currency.code], ['JPY', 'THB']);
+      expect(options.first.krwPerUnit, 9);
+      expect(options.first.fromKrw(54000), 6000);
+    });
+
+    testWidgets('amounts show in yen too, but copying stays in won',
+        (tester) async {
+      String? copied;
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform, (call) async {
+        if (call.method == 'Clipboard.setData') {
+          copied = (call.arguments as Map)['text'] as String;
+        }
+        return null;
+      });
+      await tester.pumpWidget(_app(tokyo));
+      await tester.pumpAndSettle();
+
+      // 총 192,000원 = ¥21,333 / 서연 → 지민 69,000원 = ¥7,667
+      expect(find.text('≈ ¥21,333'), findsOneWidget);
+      expect(find.text('서연 → 지민'), findsOneWidget);
+      expect(find.text('≈ ¥7,667'), findsWidgets);
+
+      await tester.tap(find.text('서연 → 지민'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('금액 복사'));
+      await tester.pumpAndSettle();
+      expect(copied, '69000');
+
+      await tester.tap(find.text('원화만'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('≈ ¥'), findsNothing);
+    });
   });
 
   test('the request message lists transfers and accounts', () {

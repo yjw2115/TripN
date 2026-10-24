@@ -1,0 +1,13 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appIDs": ["7ZQN43985N.com.preper.tripN"],
+        "components": [{ "/": "/join/*", "comment": "여행 초대 링크" }],
+        "appID": "7ZQN43985N.com.preper.tripN",
+        "paths": ["/join/*"]
+      }
+    ]
+  }
+}

@@ -1,3 +1,4 @@
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -5,6 +6,7 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../../app_providers.dart';
 import '../../../core/money/currency.dart';
+import '../../../core/money/exchange_rate.dart';
 import '../../../core/money/money_format.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../trip/presentation/widgets/account_sheet.dart';
@@ -14,11 +16,20 @@ import '../domain/settlement.dart';
 String _won(int krw) => formatMoney(krw, Currency.krw);
 
 /// 지금까지의 지출로 누가 누구에게 얼마 보낼지 보여준다. 여행 중간에도 볼 수 있다.
-class SettlementScreen extends ConsumerWidget {
+/// 외화로 쓴 여행이면 현지 화폐로 얼마인지도 함께 보여준다 (복사·메시지는 원화).
+class SettlementScreen extends ConsumerStatefulWidget {
   const SettlementScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SettlementScreen> createState() => _SettlementScreenState();
+}
+
+class _SettlementScreenState extends ConsumerState<SettlementScreen> {
+  /// 함께 보여줄 현지 화폐. null이면 가장 많이 쓴 외화, 'KRW'면 원화만.
+  String? _localCode;
+
+  @override
+  Widget build(BuildContext context) {
     final trip = ref.watch(currentTripProvider).value;
     final members = ref.watch(membersProvider).value;
     final expenses = ref.watch(expensesProvider).value;
@@ -29,6 +40,14 @@ class SettlementScreen extends ConsumerWidget {
       );
     }
     final result = settle(expenses, members);
+    final options = localCurrenciesOf(expenses);
+    final local = _localCode == Currency.krw.code
+        ? null
+        : options.firstWhereOrNull((o) => o.currency.code == _localCode) ??
+            options.firstOrNull;
+    String? inLocal(int krw) => local == null
+        ? null
+        : '≈ ${formatMoney(local.fromKrw(krw), local.currency)}';
     return Scaffold(
       appBar: AppBar(title: const Text('정산')),
       body: ListView(
@@ -44,6 +63,12 @@ class SettlementScreen extends ConsumerWidget {
                     fontSize: 28,
                     fontWeight: FontWeight.w700,
                     letterSpacing: -0.5)),
+            if (inLocal(result.totalKrw) case final text?)
+              Text(text,
+                  style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textSub)),
             Text('${members.length}명 · 지출 ${expenses.length - result.unratedCount}건',
                 style: const TextStyle(fontSize: 14, color: AppColors.textHint)),
             if (result.unratedCount > 0)
@@ -56,6 +81,14 @@ class SettlementScreen extends ConsumerWidget {
               ),
             const SizedBox(height: 8),
           ]),
+          if (options.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            _LocalCurrencyPicker(
+              options: options,
+              selected: local,
+              onSelected: (code) => setState(() => _localCode = code),
+            ),
+          ],
           const SizedBox(height: 12),
           SectionCard(
             title: '보낼 돈',
@@ -71,7 +104,9 @@ class SettlementScreen extends ConsumerWidget {
               for (final t in result.transfers)
                 _TransferRow(
                   transfer: t,
-                  onTap: () => _showTransfer(context, ref, trip.id, t),
+                  local: inLocal(t.amount),
+                  onTap: () =>
+                      _showTransfer(context, trip.id, t, inLocal(t.amount)),
                 ),
             ],
           ),
@@ -79,7 +114,8 @@ class SettlementScreen extends ConsumerWidget {
           SectionCard(
             title: '각자 낸 돈과 쓴 돈',
             children: [
-              for (final b in result.balances) _BalanceRow(balance: b),
+              for (final b in result.balances)
+                _BalanceRow(balance: b, local: inLocal(b.net.abs())),
               const Padding(
                 padding: EdgeInsets.only(top: 8, bottom: 4),
                 child: Text(
@@ -88,6 +124,17 @@ class SettlementScreen extends ConsumerWidget {
                   style: TextStyle(fontSize: 13, color: AppColors.textHint, height: 1.4),
                 ),
               ),
+              if (local != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4, bottom: 4),
+                  child: Text(
+                    '${local.currency.nameKo} 금액은 이 여행의 ${local.currency.nameKo} 지출 평균 환율'
+                    '(${formatRate(FixedRate(krwPerUnit: local.krwPerUnit, source: RateSource.koreaexim), local.currency)})로 '
+                    '바꾼 참고 금액이에요. 복사와 정산 요청 메시지는 원화로 해요.',
+                    style: const TextStyle(
+                        fontSize: 13, color: AppColors.textHint, height: 1.4),
+                  ),
+                ),
             ],
           ),
         ],
@@ -117,9 +164,9 @@ class SettlementScreen extends ConsumerWidget {
     );
   }
 
-  /// 금액이나 계좌·금액을 복사해서 송금 앱에 붙여 넣는다. 계좌가 없으면 등록하게 한다.
+  /// 금액이나 계좌·금액을 복사해서 송금 앱에 붙여 넣는다 (원화). 계좌가 없으면 등록하게 한다.
   Future<void> _showTransfer(
-      BuildContext context, WidgetRef ref, String tripId, Transfer t) async {
+      BuildContext context, String tripId, Transfer t, String? local) async {
     final account = t.to.account;
     void copy(BuildContext sheetContext, String text, String done) {
       Clipboard.setData(ClipboardData(text: text));
@@ -138,9 +185,18 @@ class SettlementScreen extends ConsumerWidget {
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
-              child: Text('${t.from.name} → ${t.to.name} ${_won(t.amount)}',
-                  style: const TextStyle(
-                      fontSize: 20, fontWeight: FontWeight.w700)),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('${t.from.name} → ${t.to.name} ${_won(t.amount)}',
+                      style: const TextStyle(
+                          fontSize: 20, fontWeight: FontWeight.w700)),
+                  if (local != null)
+                    Text(local,
+                        style: const TextStyle(
+                            fontSize: 15, color: AppColors.textSub)),
+                ],
+              ),
             ),
             ListTile(
               leading: const Icon(Icons.copy_rounded),
@@ -174,10 +230,48 @@ class SettlementScreen extends ConsumerWidget {
   }
 }
 
+/// 현지 화폐로도 볼 통화를 고른다. 외화를 여러 개 썼을 때 바꿀 수 있다.
+class _LocalCurrencyPicker extends StatelessWidget {
+  const _LocalCurrencyPicker(
+      {required this.options, required this.selected, required this.onSelected});
+
+  final List<LocalCurrency> options;
+  final LocalCurrency? selected;
+  final ValueChanged<String> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        const Text('함께 볼 화폐',
+            style: TextStyle(fontSize: 14, color: AppColors.textSub)),
+        for (final o in options)
+          ChoiceChip(
+            label: Text('${o.currency.nameKo} ${o.currency.code}'),
+            selected: selected?.currency == o.currency,
+            onSelected: (_) => onSelected(o.currency.code),
+          ),
+        ChoiceChip(
+          label: const Text('원화만'),
+          selected: selected == null,
+          onSelected: (_) => onSelected(Currency.krw.code),
+        ),
+      ],
+    );
+  }
+}
+
 class _TransferRow extends StatelessWidget {
-  const _TransferRow({required this.transfer, required this.onTap});
+  const _TransferRow(
+      {required this.transfer, required this.local, required this.onTap});
 
   final Transfer transfer;
+
+  /// "≈ ¥5,330"처럼 현지 화폐로 본 금액. 원화만 볼 때는 null.
+  final String? local;
   final VoidCallback onTap;
 
   @override
@@ -204,9 +298,18 @@ class _TransferRow extends StatelessWidget {
                   style: const TextStyle(
                       fontSize: 15, fontWeight: FontWeight.w600)),
             ),
-            Text(_won(transfer.amount),
-                style:
-                    const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(_won(transfer.amount),
+                    style: const TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.w700)),
+                if (local != null)
+                  Text(local!,
+                      style: const TextStyle(
+                          fontSize: 13, color: AppColors.textHint)),
+              ],
+            ),
             const Icon(Icons.chevron_right_rounded,
                 size: 20, color: AppColors.textHint),
           ],
@@ -217,9 +320,12 @@ class _TransferRow extends StatelessWidget {
 }
 
 class _BalanceRow extends StatelessWidget {
-  const _BalanceRow({required this.balance});
+  const _BalanceRow({required this.balance, required this.local});
 
   final MemberBalance balance;
+
+  /// 받을 돈·보낼 돈을 현지 화폐로 본 금액.
+  final String? local;
 
   @override
   Widget build(BuildContext context) {
@@ -236,9 +342,19 @@ class _BalanceRow extends StatelessWidget {
           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
       subtitle: Text('낸 돈 ${_won(balance.paid)} · 쓴 돈 ${_won(balance.owed)}',
           style: const TextStyle(fontSize: 13, color: AppColors.textHint)),
-      trailing: Text(label,
-          style: TextStyle(
-              fontSize: 14, fontWeight: FontWeight.w600, color: color)),
+      trailing: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Text(label,
+              style: TextStyle(
+                  fontSize: 14, fontWeight: FontWeight.w600, color: color)),
+          if (local != null && net != 0)
+            Text(local!,
+                style:
+                    const TextStyle(fontSize: 13, color: AppColors.textHint)),
+        ],
+      ),
     );
   }
 }

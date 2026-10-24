@@ -97,7 +97,22 @@ trips/{tripId}/expenses/{id}    participantIds                  ← 함께 쓴 �
   - 환율을 못 정한 지출은 빼고 건수를 보여준다.
   - 보낼 돈은 가장 많이 보낼 사람과 받을 사람을 차례로 짝지어 최대 (인원 − 1)번으로 끝낸다.
 - 정산 화면(홈의 "정산하기"): 보낼 돈 → 금액 복사 / 계좌와 금액 복사 / 받을 계좌 등록, 각자 낸 돈·쓴 돈, 정산 요청 메시지 공유.
+- 외화를 쓴 여행이면 금액마다 현지 화폐로 얼마인지도 보여준다 ("≈ ¥9,000"). 가장 많이 쓴 외화가 기본이고 바꿀 수 있다.
+  환율은 그 통화로 쓴 지출의 평균 (원화 합계 ÷ 현지 화폐 합계). 복사와 정산 요청 메시지는 원화로만 한다.
 - 함께 쓴 사람에만 들어 있는 동행자는 지울 수 있다 (그 지출들에서 빠짐). 결제자나 같이 먹은 사람으로 콕 집힌 동행자는 지울 수 없다.
+
+### 초대 링크
+
+`https://travelen-468bc.web.app/join/{코드}` (초대 메시지에 들어간다)
+
+- 앱이 있으면 iOS Universal Link / Android App Link로 앱의 `/join/{코드}` 경로가 열리고, 코드 입력 없이 여행 확인으로 간다.
+  - iOS: `ios/Runner/Runner.entitlements`의 `applinks:travelen-468bc.web.app` ↔ `hosting/.well-known/apple-app-site-association` (팀 7ZQN43985N)
+  - Android: `AndroidManifest.xml`의 autoVerify intent-filter ↔ `hosting/.well-known/assetlinks.json`
+    (업로드 키·디버그 키 지문. **Play 앱 서명 키 지문은 Play Console → 앱 무결성에서 복사해 추가해야** Play에서 받은 앱이 바로 열린다)
+- 카카오톡 인앱 브라우저는 Universal Link를 앱으로 넘기지 않아서 `hosting/join.html`이 열린다.
+  이 페이지가 앱 스킴(`tripn://app/join/{코드}`, Android는 intent://)으로 앱을 열고, 앱이 없으면 코드와 설치 방법을 보여준다.
+- 앱은 경로만 본다 (Flutter 딥 링크 → go_router `/join/:code`). 스킴의 호스트(`app`)는 쓰지 않는다.
+- 호스팅을 배포해야 링크가 동작한다: `firebase deploy --only hosting --project travelen-468bc`
 
 ## Firebase 설정 (travelen-468bc)
 

@@ -59,9 +59,26 @@
     "public": "hosting",
     "ignore": [
       "firebase.json",
-      "**/.*"
+      "**/.DS_Store"
     ],
-    "cleanUrls": true
+    "cleanUrls": true,
+    "rewrites": [
+      {
+        "source": "/join/**",
+        "destination": "/join.html"
+      }
+    ],
+    "headers": [
+      {
+        "source": "/.well-known/apple-app-site-association",
+        "headers": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ]
+      }
+    ]
   },
   "functions": [
     {
@@ -86,6 +103,9 @@
     },
     "ui": {
       "enabled": true
+    },
+    "hosting": {
+      "port": 5005
     }
   }
 }

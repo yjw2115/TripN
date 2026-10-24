@@ -29,6 +29,13 @@ final _router = GoRouter(
         builder: (context, state) => const SettlementScreen()),
     GoRoute(
         path: '/join', builder: (context, state) => const JoinTripScreen()),
+    // 초대 링크(https://travelen-468bc.web.app/join/{code}, tripn://app/join/{code})가 여기로 온다.
+    // /join 아래에 겹치지 않게 따로 두어서, 닫으면 코드 입력 화면이 아니라 홈으로 간다.
+    GoRoute(
+      path: '/join/:code',
+      builder: (context, state) =>
+          JoinTripScreen(initialCode: state.pathParameters['code']),
+    ),
   ],
 );
 

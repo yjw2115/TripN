@@ -118,9 +118,17 @@ String? normalizeInviteCode(String input) {
   return code;
 }
 
-/// 메신저로 보낼 초대 메시지. 코드만 길게 눌러 복사하기 쉽게 마지막 줄에 따로 둔다.
+/// 초대 링크. 앱이 있으면 Universal Link·App Link로 앱의 /join/{code}가 열리고,
+/// 없거나 카카오톡처럼 앱으로 넘겨주지 않는 브라우저면 hosting/join.html이 앱을 열거나 설치를 안내한다.
+const inviteLinkBase = 'https://travelen-468bc.web.app/join/';
+
+String inviteLink(String code) => '$inviteLinkBase$code';
+
+/// 링크가 열리지 않을 때를 위해 코드도 마지막 줄에 따로 둔다 (길게 눌러 복사하기 쉽게).
 String inviteMessage(String tripName, String code) =>
     "[여행N] '$tripName'에 초대해요.\n"
-    '여행N 앱 홈에서 여행 이름을 누르고 [초대 코드로 참여하기]에 아래 코드를 입력해 주세요.\n'
+    '아래 링크를 누르면 여행N 앱에서 바로 참여할 수 있어요.\n'
+    '${inviteLink(code)}\n'
     '\n'
+    '링크가 열리지 않으면 앱에서 [초대 코드로 참여하기]에 이 코드를 입력해 주세요.\n'
     '$code';

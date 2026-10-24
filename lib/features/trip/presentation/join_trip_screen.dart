@@ -14,8 +14,11 @@ enum _Step { code, confirm, pick }
 
 /// 초대 코드 입력 → 여행 확인 → 참여 → 이 여행에서 누구인지 고르기.
 /// 멤버 목록은 참여한 뒤에야 읽을 수 있어서, 고르기는 참여 다음에 한다.
+/// 초대 링크로 열리면 [initialCode]로 코드 입력을 건너뛰고 바로 여행을 찾는다.
 class JoinTripScreen extends ConsumerStatefulWidget {
-  const JoinTripScreen({super.key});
+  const JoinTripScreen({super.key, this.initialCode});
+
+  final String? initialCode;
 
   @override
   ConsumerState<JoinTripScreen> createState() => _JoinTripScreenState();
@@ -34,6 +37,16 @@ class _JoinTripScreenState extends ConsumerState<JoinTripScreen> {
   bool _newPerson = false;
 
   @override
+  void initState() {
+    super.initState();
+    final code = normalizeInviteCode(widget.initialCode ?? '');
+    if (code != null) {
+      _code.text = code;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _find());
+    }
+  }
+
+  @override
   void dispose() {
     _code.dispose();
     _name.dispose();
@@ -50,13 +63,16 @@ class _JoinTripScreenState extends ConsumerState<JoinTripScreen> {
       _error = null;
     });
     try {
+      // 링크로 앱이 처음 열렸을 때는 아직 로그인 중일 수 있다 (초대 문서를 읽으려면 로그인이 필요하다).
+      await ref.read(currentUserProvider.future);
       final invite = await _repo.findInvite(code);
       if (!mounted) return;
       if (invite == null) {
         setState(() => _error = '코드를 찾지 못했어요. 다시 확인해 주세요.');
         return;
       }
-      final myTrips = ref.read(myTripsProvider).value ?? const <Trip>[];
+      final myTrips = await ref.read(myTripsProvider.future);
+      if (!mounted) return;
       if (myTrips.any((t) => t.id == invite.tripId)) {
         final user = await ref.read(currentUserProvider.future);
         if (!mounted) return;
@@ -133,6 +149,9 @@ class _JoinTripScreenState extends ConsumerState<JoinTripScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // 링크로 바로 열리면 홈 화면이 없어서 아무도 내 여행 목록을 지켜보지 않는다.
+    // Riverpod은 지켜보는 쪽이 없는 provider를 멈춰 두므로, 이미 참여한 여행인지 볼 수 있게 여기서 지켜본다.
+    ref.watch(myTripsProvider);
     final guests = _step == _Step.pick
         ? (ref.watch(tripMembersProvider(_invite!.tripId)).value ?? const <Member>[])
             .where((m) => m.isGuest)
@@ -155,7 +174,17 @@ class _JoinTripScreenState extends ConsumerState<JoinTripScreen> {
         ),
     };
     return Scaffold(
-      appBar: AppBar(title: const Text('초대 코드로 참여')),
+      appBar: AppBar(
+        title: const Text('초대 코드로 참여'),
+        // 링크로 바로 열려서 돌아갈 화면이 없으면 홈으로 간다.
+        leading: Navigator.of(context).canPop()
+            ? null
+            : IconButton(
+                tooltip: '닫기',
+                icon: const Icon(Icons.close_rounded),
+                onPressed: () => context.go('/'),
+              ),
+      ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
         children: [

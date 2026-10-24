@@ -26,6 +26,22 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+            <!-- 링크의 경로(/join/{코드})를 go_router로 넘긴다 -->
+            <meta-data android:name="flutter_deeplinking_enabled" android:value="true" />
+            <!-- 초대 링크. hosting/.well-known/assetlinks.json으로 검증되면 묻지 않고 앱이 열린다 -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="travelen-468bc.web.app" android:pathPrefix="/join/" />
+            </intent-filter>
+            <!-- 카카오톡 인앱 브라우저에서 초대 페이지가 여는 tripn://app/join/{코드} -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="tripn" android:host="app" />
+            </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->

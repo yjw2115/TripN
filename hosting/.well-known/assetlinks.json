@@ -1,0 +1,13 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.preper.tripN",
+      "sha256_cert_fingerprints": [
+        "B3:50:AE:92:F0:C5:58:D4:18:C7:62:DF:81:E2:1A:FB:C0:80:5C:8E:B0:E0:2A:7E:84:57:8C:1F:0F:D0:A6:52",
+        "4B:0E:38:C2:44:4C:56:5A:C1:D8:BD:71:6F:AA:0B:5F:88:42:D0:F4:63:33:2E:3E:3A:B8:38:4B:6E:64:CE:B1"
+      ]
+    }
+  }
+]

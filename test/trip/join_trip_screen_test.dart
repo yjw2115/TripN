@@ -32,16 +32,21 @@ void main() {
     code = await repo.ensureInviteCode(tripId, 'alice');
   });
 
-  Widget app() => ProviderScope(
+  Widget app({String initialLocation = '/join'}) => ProviderScope(
         overrides: [
           tripRepositoryProvider.overrideWithValue(repo),
           currentUserProvider.overrideWith((ref) async => _FakeUser('bob')),
           myTripsProvider.overrideWith((ref) => Stream.value(const [])),
         ],
         child: MaterialApp.router(
-          routerConfig: GoRouter(initialLocation: '/join', routes: [
+          routerConfig: GoRouter(initialLocation: initialLocation, routes: [
             GoRoute(path: '/', builder: (_, _) => const Text('홈')),
             GoRoute(path: '/join', builder: (_, _) => const JoinTripScreen()),
+            GoRoute(
+              path: '/join/:code',
+              builder: (_, state) =>
+                  JoinTripScreen(initialCode: state.pathParameters['code']),
+            ),
           ]),
         ),
       );
@@ -93,6 +98,19 @@ void main() {
     final members = await repo.watchMembers(tripId).first;
     expect(members.map((m) => (m.name, m.uid)),
         [('지민', 'alice'), ('민수', null), ('서연', 'bob')]);
+  });
+
+  testWidgets('an invite link skips typing the code', (tester) async {
+    await tester.pumpWidget(
+        app(initialLocation: '/join/${code.toLowerCase()}'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('이 여행에 참여할까요?'), findsOneWidget);
+    expect(find.text('도쿄 여행'), findsOneWidget);
+    // 링크로 바로 열려 돌아갈 화면이 없으니 닫기 버튼으로 홈에 간다.
+    await tester.tap(find.byTooltip('닫기'));
+    await tester.pumpAndSettle();
+    expect(find.text('홈'), findsOneWidget);
   });
 
   testWidgets('an unknown code shows an error and stays on the code step',
