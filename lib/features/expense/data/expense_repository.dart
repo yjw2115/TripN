@@ -1,11 +1,13 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../../../core/money/exchange_rate.dart';
 import '../../receipt/domain/receipt.dart';
 import '../domain/expense.dart';
 
 /// Firestore 구조 (여행·멤버는 TripRepository)
 ///   trips/{tripId}/expenses/{id}      title, category, currency, totalMinor,
-///                                     paidAt, payerId(멤버 id), createdBy, receipt{...}
+///                                     paidAt, payerId(멤버 id), createdBy, receipt{...},
+///                                     krwRate, rateSource, rateDate (지출할 때 고정한 환율)
 class ExpenseRepository {
   ExpenseRepository(this._db);
 
@@ -28,6 +30,10 @@ class ExpenseRepository {
     required String payerId,
     required Receipt receipt,
     String? expenseId,
+    FixedRate? rate,
+
+    /// 고칠 때 통화·날짜가 그대로면 처음 고정한 환율을 건드리지 않는다.
+    bool keepRate = false,
   }) {
     final data = <String, Object?>{
       'title': receipt.merchantName.isEmpty ? '이름 없는 지출' : receipt.merchantName,
@@ -37,10 +43,19 @@ class ExpenseRepository {
       'paidAt': (receipt.paidAt ?? DateTime.now()).toIso8601String(),
       'receipt': receipt.toMap(),
       'payerId': payerId,
+      ...?rate?.toMap(),
       'updatedAt': FieldValue.serverTimestamp(),
     };
     if (expenseId != null) {
-      return _expenses(tripId).doc(expenseId).update(data);
+      return _expenses(tripId).doc(expenseId).update({
+        ...data,
+        // 환율을 새로 못 정했으면 예전 환율이 잘못 남지 않게 지우고, 나중에 채운다 (fillRate).
+        if (!keepRate && rate == null) ...{
+          'krwRate': FieldValue.delete(),
+          'rateSource': FieldValue.delete(),
+          'rateDate': FieldValue.delete(),
+        },
+      });
     }
     return _expenses(tripId).add({
       ...data,
@@ -49,6 +64,10 @@ class ExpenseRepository {
       'createdAt': FieldValue.serverTimestamp(),
     });
   }
+
+  /// 저장할 때 환율을 못 받았던(오프라인 등) 지출이나 예전 지출에 환율을 채운다.
+  Future<void> fillRate(String tripId, String expenseId, FixedRate rate) =>
+      _expenses(tripId).doc(expenseId).update(rate.toMap());
 
   Future<void> deleteExpense(String tripId, String expenseId) =>
       _expenses(tripId).doc(expenseId).delete();

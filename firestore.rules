@@ -32,6 +32,11 @@ service cloud.firestore {
       allow read, write: if signedIn() && request.auth.uid == uid;
     }
 
+    // 수출입은행 환율. Cloud Functions(exchangeRates)만 쓴다.
+    match /rates/{date} {
+      allow read: if signedIn();
+    }
+
     // 초대 코드 → 여행. 코드를 아는 사람만 열 수 있게 목록 조회는 막는다.
     match /invites/{code} {
       allow get: if signedIn();
@@ -53,11 +58,12 @@ service cloud.firestore {
         && request.resource.data.ownerId == request.auth.uid
         && request.resource.data.memberUids == [request.auth.uid];
 
-      // 멤버: 이름과 초대 코드를 바꾸고, 소유자가 아니면 자기 uid를 뺄 수 있다(나가기).
+      // 멤버: 이름·초대 코드·직접 정한 환율을 바꾸고, 소유자가 아니면 자기 uid를 뺄 수 있다(나가기).
       allow update: if signedIn()
         && request.auth.uid in resource.data.memberUids
-        && changedKeys().hasOnly(['name', 'inviteCode', 'memberUids'])
+        && changedKeys().hasOnly(['name', 'inviteCode', 'memberUids', 'manualRates'])
         && validName(request.resource.data.name)
+        && (!('manualRates' in changedKeys()) || request.resource.data.manualRates is map)
         && (!('inviteCode' in changedKeys())
             || existsAfter(/databases/$(database)/documents/invites/$(request.resource.data.inviteCode)))
         && (!('memberUids' in changedKeys())
@@ -125,16 +131,24 @@ service cloud.firestore {
         return exists(/databases/$(database)/documents/trips/$(tripId)/members/$(request.resource.data.payerId));
       }
 
+      // 고정 환율은 아직 없거나(나중에 채움) 양수.
+      function validRate() {
+        return !('krwRate' in request.resource.data)
+          || (request.resource.data.krwRate is number && request.resource.data.krwRate > 0);
+      }
+
       match /expenses/{expenseId} {
         allow read, delete: if isMember(tripId);
         allow create: if isMember(tripId)
           && request.resource.data.createdBy == request.auth.uid
           && request.resource.data.totalMinor is int
-          && payerIsMember();
+          && payerIsMember()
+          && validRate();
         allow update: if isMember(tripId)
           && request.resource.data.createdBy == resource.data.createdBy
           && request.resource.data.totalMinor is int
-          && payerIsMember();
+          && payerIsMember()
+          && validRate();
       }
     }
   }

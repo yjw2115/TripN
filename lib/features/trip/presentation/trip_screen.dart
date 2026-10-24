@@ -5,9 +5,12 @@ import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../../app_providers.dart';
+import '../../../core/money/currency.dart';
+import '../../../core/money/exchange_rate.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../receipt/presentation/widgets/edit_sheets.dart';
 import '../domain/trip.dart';
+import 'widgets/manual_rate_sheet.dart';
 import 'widgets/trip_widgets.dart';
 
 /// 지금 여행의 이름, 동행자, 초대 코드를 관리한다.
@@ -70,6 +73,37 @@ class TripScreen extends ConsumerWidget {
               ),
             ],
           ),
+          if (trip.manualRates.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            SectionCard(
+              title: '여행에서 정한 환율',
+              children: [
+                for (final entry in trip.manualRates.entries)
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(
+                        formatRate(
+                            FixedRate(
+                                krwPerUnit: entry.value,
+                                source: RateSource.manual),
+                            Currency.of(entry.key)),
+                        style: const TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.w600)),
+                    trailing: const Icon(Icons.edit_outlined,
+                        size: 20, color: AppColors.textHint),
+                    onTap: () =>
+                        editManualRate(context, ref, Currency.of(entry.key)),
+                  ),
+                const Padding(
+                  padding: EdgeInsets.only(top: 4, bottom: 4),
+                  child: Text(
+                    '바꾸면 이후에 저장하는 지출부터 적용돼요. 이미 저장한 지출의 환율은 그대로예요.',
+                    style: TextStyle(fontSize: 13, color: AppColors.textHint),
+                  ),
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: 12),
           _InviteCard(trip: trip, uid: user.uid),
           const SizedBox(height: 24),

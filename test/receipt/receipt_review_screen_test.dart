@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:travelen/app_providers.dart';
 import 'package:travelen/core/money/currency.dart';
+import 'package:travelen/core/money/exchange_rate.dart';
 import 'package:travelen/features/receipt/domain/receipt.dart';
 import 'package:travelen/features/receipt/presentation/receipt_review_screen.dart';
 import 'package:travelen/features/trip/domain/trip.dart';
@@ -12,14 +13,20 @@ import 'package:travelen/features/trip/domain/trip.dart';
 const _me = Member(id: 'me', name: '지민', uid: 'uid-me');
 const _minsu = Member(id: 'g1', name: '민수');
 
-/// Firebase 없이 그리도록 동행자 목록만 넣어 준다.
+const _thbRate = FixedRate(
+    krwPerUnit: 40.12, source: RateSource.koreaexim, date: '2019-12-19');
+
+/// Firebase 없이 그리도록 동행자 목록과 환율을 넣어 준다.
 Widget _wrap(Receipt receipt,
         {List<String> warnings = const [],
-        List<Member> members = const [_me]}) =>
+        List<Member> members = const [_me],
+        Future<FixedRate?> Function()? rate}) =>
     ProviderScope(
       overrides: [
         membersProvider.overrideWith((ref) => Stream.value(members)),
         myMemberProvider.overrideWith((ref) async => _me),
+        rateQuoteProvider
+            .overrideWith((ref, key) => rate?.call() ?? Future.value(_thbRate)),
       ],
       child: MaterialApp(
         locale: const Locale('ko'),
@@ -129,6 +136,40 @@ void main() {
     expect(find.textContaining('품목 합계'), findsNothing);
     expect(find.text('총액만 있는 영수증이에요'), findsNothing);
     expect(find.text('총 결제 금액을 입력해 주세요'), findsOneWidget);
+  });
+
+  testWidgets('shows the won amount at the fixed rate', (tester) async {
+    await tester.pumpWidget(_wrap(_thaiReceipt(totalMinor: 16800)));
+    await tester.pump();
+
+    expect(find.text('≈ 6,740원'), findsOneWidget);
+    expect(find.text('1바트 = 40.12원 · 12월 19일 고시'), findsOneWidget);
+  });
+
+  testWidgets('a currency without an official rate asks for one',
+      (tester) async {
+    await tester.pumpWidget(_wrap(
+      Receipt(
+          merchantName: 'Phở Hà Nội',
+          currency: Currency.of('VND'),
+          items: const [],
+          totalMinor: 65000),
+      rate: () async => null,
+    ));
+    await tester.pump();
+
+    expect(find.text('환율을 정해 주세요'), findsOneWidget);
+  });
+
+  testWidgets('a won receipt shows no conversion', (tester) async {
+    await tester.pumpWidget(_wrap(const Receipt(
+        merchantName: '김밥천국',
+        currency: Currency.krw,
+        items: [],
+        totalMinor: 12500)));
+    await tester.pump();
+
+    expect(find.textContaining('≈'), findsNothing);
   });
 
   testWidgets('a solo trip does not ask who paid', (tester) async {

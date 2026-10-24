@@ -44,6 +44,7 @@ class HomeScreen extends ConsumerWidget {
     final trip = ref.watch(currentTripProvider);
     final expenses = ref.watch(expensesProvider);
     final memberCount = ref.watch(membersProvider).value?.length;
+    ref.watch(rateBackfillProvider);
     return Scaffold(
       appBar: AppBar(
         title: InkWell(
@@ -146,7 +147,7 @@ class _ExpenseList extends StatelessWidget {
   }
 }
 
-/// 환율 기능 전이라 통화별 합계를 따로 보여준다.
+/// 지출할 때 고정한 환율로 원화 합계를 보여주고, 통화별 합계는 그 아래 작게 둔다.
 class _SummaryCard extends StatelessWidget {
   const _SummaryCard({required this.expenses});
 
@@ -155,9 +156,18 @@ class _SummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final totals = <Currency, int>{};
+    var krwTotal = 0;
+    var withoutRate = 0;
     for (final e in expenses) {
       totals[e.currency] = (totals[e.currency] ?? 0) + e.totalMinor;
+      final krw = e.totalKrw;
+      if (krw == null) {
+        withoutRate++;
+      } else {
+        krwTotal += krw;
+      }
     }
+    final onlyKrw = totals.keys.every((c) => c == Currency.krw);
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -170,12 +180,27 @@ class _SummaryCard extends StatelessWidget {
           Text('지출 ${expenses.length}건',
               style: const TextStyle(fontSize: 14, color: AppColors.textSub)),
           const SizedBox(height: 6),
-          for (final t in totals.entries)
-            Text(formatMoney(t.value, t.key),
-                style: const TextStyle(
-                    fontSize: 26,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: -0.5)),
+          Text(formatMoney(krwTotal, Currency.krw),
+              style: const TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.5)),
+          if (!onlyKrw)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                [for (final t in totals.entries) formatMoney(t.value, t.key)]
+                    .join(' · '),
+                style: const TextStyle(fontSize: 14, color: AppColors.textHint),
+              ),
+            ),
+          if (withoutRate > 0)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text('환율을 아직 정하지 못한 지출 $withoutRate건은 빠져 있어요',
+                  style:
+                      const TextStyle(fontSize: 13, color: AppColors.warning)),
+            ),
         ],
       ),
     );
@@ -232,15 +257,34 @@ class _ExpenseTile extends ConsumerWidget {
         ].join(' · '),
         style: const TextStyle(fontSize: 13, color: AppColors.textHint),
       ),
-      trailing: Text(formatMoney(expense.totalMinor, expense.currency),
-          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+      trailing: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Text(formatMoney(expense.totalMinor, expense.currency),
+              style:
+                  const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+          if (expense.currency != Currency.krw)
+            Text(
+              expense.totalKrw == null
+                  ? '환율 미정'
+                  : formatMoney(expense.totalKrw!, Currency.krw),
+              style: TextStyle(
+                  fontSize: 13,
+                  color: expense.totalKrw == null
+                      ? AppColors.warning
+                      : AppColors.textHint),
+            ),
+        ],
+      ),
       onTap: receipt == null
           ? null
           : () => context.push('/review',
               extra: ReviewArgs(
                   receipt: receipt,
                   expenseId: expense.id,
-                  payerId: expense.payerId)),
+                  payerId: expense.payerId,
+                  rate: expense.rate)),
       onLongPress: () => _delete(context, ref),
     );
   }

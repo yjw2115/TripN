@@ -16,7 +16,7 @@ class InviteInfo {
 
 /// Firestore 구조
 ///   users/{uid}                         currentTripId
-///   trips/{tripId}                      name, ownerId, memberUids, inviteCode, createdAt
+///   trips/{tripId}                      name, ownerId, memberUids, inviteCode, manualRates, createdAt
 ///   trips/{tripId}/members/{memberId}   name, uid(이름만 있는 동행자는 null), createdBy, createdAt
 ///   invites/{code}                      tripId, tripName, createdBy, createdAt
 ///
@@ -127,6 +127,10 @@ class TripRepository {
     if (code != null) batch.update(_invites.doc(code), {'tripName': name});
     return batch.commit();
   }
+
+  /// 동행자 모두 같은 값을 쓰도록 여행에 둔다.
+  Future<void> setManualRate(String tripId, String currencyCode, double krwPerUnit) =>
+      _trips.doc(tripId).update({'manualRates.$currencyCode': krwPerUnit});
 
   /// 먼저 들어온 사람부터.
   Stream<List<Member>> watchMembers(String tripId) =>

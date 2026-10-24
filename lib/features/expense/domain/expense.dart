@@ -1,4 +1,5 @@
 import '../../../core/money/currency.dart';
+import '../../../core/money/exchange_rate.dart';
 import '../../receipt/domain/receipt.dart';
 
 /// 여행 중 지출 한 건. 영수증으로 만들었으면 [receipt]에 품목이 들어 있다.
@@ -13,7 +14,8 @@ class Expense {
     required this.payerId,
     required this.createdBy,
     this.receipt,
-  });
+    FixedRate? rate,
+  }) : _rate = rate;
 
   final String id;
   final String title;
@@ -26,6 +28,13 @@ class Expense {
   final String payerId;
   final String createdBy;
   final Receipt? receipt;
+  final FixedRate? _rate;
+
+  /// 지출할 때 고정한 원화 환율. 아직 못 정했으면 null (원화 지출은 언제나 1).
+  FixedRate? get rate =>
+      _rate ?? (currency == Currency.krw ? FixedRate.krw : null);
+
+  int? get totalKrw => rate?.toKrw(totalMinor, currency);
 
   /// 이 멤버가 결제자이거나 품목 참여자면 true. 멤버를 지워도 되는지 볼 때 쓴다.
   bool involves(String memberId) =>
@@ -47,6 +56,7 @@ class Expense {
       receipt: receiptMap == null
           ? null
           : Receipt.fromMap(Map<String, Object?>.from(receiptMap)),
+      rate: FixedRate.fromMap(map),
     );
   }
 }

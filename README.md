@@ -44,12 +44,43 @@ cd tool/firestore_rules && npm install
 JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" npm test
 ```
 
-규칙을 배포하기 전에 앱으로 확인하려면 에뮬레이터를 띄우고 디버그 빌드에 `FIRESTORE_EMULATOR`를 준다.
+배포하기 전에 앱으로 확인하려면 에뮬레이터를 띄우고 디버그 빌드에 `FIREBASE_EMULATOR`를 준다
+(Firestore 8080, Functions 5001).
 
 ```bash
-PATH="/Applications/Android Studio.app/Contents/jbr/Contents/Home/bin:$PATH" firebase emulators:start --only firestore --project travelen-468bc
-flutter run --dart-define-from-file=dart_defines.local.json --dart-define=FIRESTORE_EMULATOR=localhost:8080
+PATH="/Applications/Android Studio.app/Contents/jbr/Contents/Home/bin:$PATH" firebase emulators:start --only firestore,functions --project travelen-468bc
+flutter run --dart-define-from-file=dart_defines.local.json --dart-define=FIREBASE_EMULATOR=localhost
 ```
+
+Functions 에뮬레이터는 `functions/.secret.local`(git 제외)에서 `KOREAEXIM_AUTHKEY=...`를 읽는다.
+파일이 없으면 운영 Secret Manager 값을 가져오려 한다.
+
+## 3단계: 환율 고정
+
+```
+rates/{yyyy-MM-dd}              effectiveDate(실제 고시일), krwPer{통화: 1단위당 원}   ← Cloud Functions만 씀
+trips/{tripId}                  manualRates{통화: 1단위당 원}                          ← 수출입은행에 없는 통화
+trips/{tripId}/expenses/{id}    krwRate, rateSource(koreaexim|manual|krw), rateDate
+```
+
+- 지출을 저장할 때 그 영수증 날짜의 한국수출입은행 매매기준율을 지출에 고정한다. 동행자 모두 같은 원화 금액으로 정산한다.
+  고칠 때 통화나 날짜가 그대로면 처음 고정한 환율을 바꾸지 않는다.
+- 앱은 `rates/{날짜}`를 먼저 읽고, 없을 때만 `exchangeRates` 함수(asia-northeast3)를 부른다. 함수가 받은 환율을 저장해 두어서
+  같은 날짜는 모든 사용자가 API를 한 번만 쓴다 (수출입은행 한도: 하루 1,000회).
+- 비영업일·고시 전(영업일 11시 전)은 직전 영업일 환율을 쓰고 `effectiveDate`에 그 날짜를 남긴다.
+  지난 비영업일은 저장해 두고, 고시 전인 오늘은 저장하지 않는다.
+- `JPY(100)`, `IDR(100)`은 1단위로 나눠 저장한다. 위안화는 수출입은행이 CNH로 고시해서 CNY를 CNH로 찾는다.
+- 수출입은행에 없는 통화(VND, PHP, TWD 등)는 여행에서 한 번 직접 정한다 (확인 화면의 "환율을 정해 주세요").
+- 오프라인으로 저장했거나 1.0.0+3 이전 지출처럼 환율이 없는 지출은 홈 화면이 열려 있을 때 채운다 (`rateBackfillProvider`).
+
+```bash
+# API 키는 Secret Manager에만 둔다 (입력은 가려진다)
+firebase functions:secrets:set KOREAEXIM_AUTHKEY --project travelen-468bc
+cd functions && npm install && npm test
+firebase deploy --only functions,firestore:rules --project travelen-468bc
+```
+
+Functions 패키지는 firebase-admin 13을 쓴다. 14는 이 맥의 Node 22.11에서 ESM 의존성(jose)을 불러오지 못한다.
 
 ## Firebase 설정 (travelen-468bc)
 

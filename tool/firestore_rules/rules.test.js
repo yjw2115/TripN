@@ -355,6 +355,36 @@ describe('expenses', () => {
   });
 });
 
+describe('exchange rates', () => {
+  test('signed-in users read rates, nobody writes them from the app', async () => {
+    await env.withSecurityRulesDisabled((ctx) =>
+      setDoc(doc(ctx.firestore(), 'rates', '2026-10-23'), { effectiveDate: '2026-10-23', krwPer: { USD: 1385.5 } }),
+    );
+    await assertSucceeds(getDoc(doc(db('alice'), 'rates', '2026-10-23')));
+    await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(), 'rates', '2026-10-23')));
+    await assertFails(setDoc(doc(db('alice'), 'rates', '2026-10-24'), { krwPer: { USD: 1 } }));
+  });
+
+  test('members set a trip rate for currencies without an official one', async () => {
+    await createTrip('alice');
+    const d = db('alice');
+    await assertSucceeds(updateDoc(doc(d, 'trips', TRIP), { 'manualRates.VND': 0.0543 }));
+    await assertFails(updateDoc(doc(db('bob'), 'trips', TRIP), { 'manualRates.VND': 1 }));
+  });
+
+  test('an expense rate is optional but must be positive', async () => {
+    await createTrip('alice');
+    const d = db('alice');
+    const expense = { title: '쌀국수', totalMinor: 65000, payerId: 'alice', createdBy: 'alice' };
+    await assertSucceeds(setDoc(doc(d, 'trips', TRIP, 'expenses', 'e1'), expense));
+    await assertSucceeds(
+      updateDoc(doc(d, 'trips', TRIP, 'expenses', 'e1'), { krwRate: 0.0543, rateSource: 'manual', rateDate: null }),
+    );
+    await assertFails(updateDoc(doc(d, 'trips', TRIP, 'expenses', 'e1'), { krwRate: 0 }));
+    await assertFails(updateDoc(doc(d, 'trips', TRIP, 'expenses', 'e1'), { krwRate: '54' }));
+  });
+});
+
 describe('trips from 1.0.0+3', () => {
   beforeEach(async () => {
     await env.withSecurityRulesDisabled(async (ctx) => {

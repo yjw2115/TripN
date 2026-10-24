@@ -9,6 +9,7 @@ class Trip {
     required this.ownerId,
     required this.memberUids,
     this.inviteCode,
+    this.manualRates = const {},
   });
 
   final String id;
@@ -19,12 +20,19 @@ class Trip {
   /// 처음 초대할 때 만든다. 그 전에는 없다.
   final String? inviteCode;
 
+  /// 수출입은행에 없는 통화(동·페소 등)에 쓸, 여행에서 직접 정한 환율. 통화 코드 → 1단위당 원화.
+  final Map<String, double> manualRates;
+
   factory Trip.fromMap(String id, Map<String, Object?> map) => Trip(
         id: id,
         name: map['name'] as String? ?? '',
         ownerId: map['ownerId'] as String? ?? '',
         memberUids: (map['memberUids'] as List?)?.cast<String>() ?? const [],
         inviteCode: map['inviteCode'] as String?,
+        manualRates: {
+          for (final e in ((map['manualRates'] as Map?) ?? const {}).entries)
+            e.key as String: (e.value as num).toDouble(),
+        },
       );
 }
 

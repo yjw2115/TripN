@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
@@ -14,9 +15,9 @@ import 'firebase_options.dart';
 /// 비워 두면 SDK가 기기마다 토큰을 만들어 로그에 출력한다.
 const _appCheckDebugToken = String.fromEnvironment('APP_CHECK_DEBUG_TOKEN');
 
-/// 디버그 빌드에서 `--dart-define=FIRESTORE_EMULATOR=localhost:8080`을 주면 로컬 에뮬레이터를 쓴다.
-/// 보안 규칙을 배포하기 전에 앱으로 확인할 때 쓴다.
-const _firestoreEmulator = String.fromEnvironment('FIRESTORE_EMULATOR');
+/// 디버그 빌드에서 `--dart-define=FIREBASE_EMULATOR=localhost`를 주면 로컬 에뮬레이터
+/// (Firestore 8080, Functions 5001, firebase.json과 같은 포트)를 쓴다. 배포 전에 앱으로 확인할 때 쓴다.
+const _emulatorHost = String.fromEnvironment('FIREBASE_EMULATOR');
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -32,9 +33,10 @@ Future<void> main() async {
             debugToken: _appCheckDebugToken.isEmpty ? null : _appCheckDebugToken)
         : const AppleAppAttestWithDeviceCheckFallbackProvider(),
   );
-  if (kDebugMode && _firestoreEmulator.isNotEmpty) {
-    final [host, port] = _firestoreEmulator.split(':');
-    FirebaseFirestore.instance.useFirestoreEmulator(host, int.parse(port));
+  if (kDebugMode && _emulatorHost.isNotEmpty) {
+    FirebaseFirestore.instance.useFirestoreEmulator(_emulatorHost, 8080);
+    FirebaseFunctions.instanceFor(region: 'asia-northeast3')
+        .useFunctionsEmulator(_emulatorHost, 5001);
   }
   await initializeDateFormatting('ko');
   runApp(const ProviderScope(retry: _retry, child: TravelenApp()));

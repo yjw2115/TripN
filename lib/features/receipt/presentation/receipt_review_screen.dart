@@ -8,9 +8,11 @@ import 'package:intl/intl.dart';
 
 import '../../../app_providers.dart';
 import '../../../core/money/currency.dart';
+import '../../../core/money/exchange_rate.dart';
 import '../../../core/money/money_format.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../trip/domain/trip.dart';
+import '../../trip/presentation/widgets/manual_rate_sheet.dart';
 import '../../trip/presentation/widgets/trip_widgets.dart';
 import '../domain/receipt.dart';
 import '../domain/receipt_validator.dart';
@@ -26,6 +28,7 @@ class ReviewArgs {
     this.imagePaths = const [],
     this.expenseId,
     this.payerId,
+    this.rate,
   });
 
   final Receipt receipt;
@@ -38,6 +41,9 @@ class ReviewArgs {
 
   /// 저장된 지출의 결제자. 새 영수증이면 비워 두고 나로 시작한다.
   final String? payerId;
+
+  /// 저장된 지출에 고정해 둔 환율.
+  final FixedRate? rate;
 }
 
 /// 인식 결과를 확인하고 고친 뒤 저장한다. 자동 저장하지 않는다.
@@ -159,6 +165,64 @@ class _ReceiptReviewScreenState extends ConsumerState<ReceiptReviewScreen> {
     ));
   }
 
+  /// 환율을 찾을 날짜. 날짜가 없는 영수증은 저장할 때 지금 시각으로 저장된다.
+  String get _rateDateKey => rateDateKey(_receipt.paidAt ?? DateTime.now());
+
+  /// 저장된 지출을 고칠 때 통화와 날짜가 그대로면 처음 고정한 환율을 그대로 둔다.
+  bool get _keepsOriginalRate {
+    final args = widget.args;
+    return args.expenseId != null &&
+        args.rate != null &&
+        args.receipt.currency == _currency &&
+        rateDateKey(args.receipt.paidAt ?? DateTime.now()) == _rateDateKey;
+  }
+
+  /// 총액 아래에 보여줄 원화 금액. 원화 영수증이면 null.
+  Widget? _krwLine() {
+    if (_currency == Currency.krw) return null;
+    final AsyncValue<FixedRate?> quote = _keepsOriginalRate
+        ? AsyncData(widget.args.rate)
+        : ref.watch(rateQuoteProvider((_currency.code, _rateDateKey)));
+    if (quote.hasValue) {
+      final rate = quote.value;
+      if (rate == null) {
+        return _RateLine.action(
+          text: '환율을 정해 주세요',
+          detail: '수출입은행 고시 환율이 없는 통화예요',
+          onTap: () => editManualRate(context, ref, _currency),
+        );
+      }
+      final detail = rate.source == RateSource.manual
+          ? '${formatRate(rate, _currency)} · 여행에서 정한 환율'
+          : '${formatRate(rate, _currency)} · '
+              '${DateFormat('M월 d일', 'ko').format(DateTime.parse(rate.date!))} 고시';
+      return _RateLine(
+        text: '≈ ${formatMoney(rate.toKrw(_receipt.totalMinor, _currency), Currency.krw)}',
+        detail: detail,
+        onTap: rate.source == RateSource.manual && !_keepsOriginalRate
+            ? () => editManualRate(context, ref, _currency)
+            : null,
+      );
+    }
+    if (quote.hasError) {
+      return const _RateLine(
+          text: '환율을 불러오지 못했어요', detail: '저장해 두면 연결될 때 채워요');
+    }
+    return const _RateLine(text: '환율 불러오는 중…');
+  }
+
+  /// 저장할 때 고정할 환율. 못 받으면 null로 저장하고 나중에 채운다 (rateBackfillProvider).
+  Future<FixedRate?> _rateToFix() async {
+    try {
+      return await ref
+          .read(rateQuoteProvider((_currency.code, _rateDateKey)).future)
+          .timeout(const Duration(seconds: 8));
+    } catch (e) {
+      debugPrint('Rate lookup failed, saving without a rate: $e');
+      return null;
+    }
+  }
+
   /// 고른 결제자가 목록에 없으면(아직 못 불러왔거나 지워졌으면) 나.
   Member? _payer(List<Member> members, Member? me) =>
       members.firstWhereOrNull((m) => m.id == _payerId) ?? me;
@@ -242,12 +306,16 @@ class _ReceiptReviewScreenState extends ConsumerState<ReceiptReviewScreen> {
       final me = await ref.read(myMemberProvider.future);
       final payer = _payer(members, me);
       if (payer == null) throw StateError('No member to record as the payer');
+      final keepRate = _keepsOriginalRate;
+      final rate = keepRate ? null : await _rateToFix();
       await ref.read(expenseRepositoryProvider).saveReceipt(
             tripId: trip.id,
             uid: user.uid,
             payerId: payer.id,
             receipt: _receipt,
             expenseId: widget.args.expenseId,
+            rate: rate,
+            keepRate: keepRate,
           );
       if (!mounted) return;
       ScaffoldMessenger.of(context)
@@ -301,6 +369,7 @@ class _ReceiptReviewScreenState extends ConsumerState<ReceiptReviewScreen> {
             // 혼자인 여행에서는 결제자를 고를 일이 없다.
             payerName: members.length > 1 ? payer?.name : null,
             onPayer: () => _editPayer(members, payer),
+            krwLine: _krwLine(),
           ),
           const SizedBox(height: 12),
           if (args.receiptCount > 1) ...[
@@ -467,6 +536,7 @@ class _HeaderCard extends StatelessWidget {
     required this.onCurrency,
     required this.payerName,
     required this.onPayer,
+    required this.krwLine,
   });
 
   final Receipt receipt;
@@ -478,6 +548,7 @@ class _HeaderCard extends StatelessWidget {
   final VoidCallback onCurrency;
   final String? payerName;
   final VoidCallback onPayer;
+  final Widget? krwLine;
 
   @override
   Widget build(BuildContext context) {
@@ -547,6 +618,7 @@ class _HeaderCard extends StatelessWidget {
             ],
           ),
         ),
+        ?krwLine,
         const SizedBox(height: 12),
         Wrap(
           spacing: 8,
@@ -574,6 +646,57 @@ class _HeaderCard extends StatelessWidget {
         ),
         const SizedBox(height: 8),
       ],
+    );
+  }
+}
+
+/// 총액 아래 원화 금액과 환율 근거. [onTap]이 있으면 눌러서 환율을 정한다.
+class _RateLine extends StatelessWidget {
+  const _RateLine({required this.text, this.detail, this.onTap})
+      : _isAction = false;
+
+  const _RateLine.action(
+      {required this.text, required this.detail, required this.onTap})
+      : _isAction = true;
+
+  final String text;
+  final String? detail;
+  final VoidCallback? onTap;
+  final bool _isAction;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.only(top: 2, bottom: 2),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(text,
+                      style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: _isAction
+                              ? AppColors.warning
+                              : AppColors.textSub)),
+                  if (detail != null)
+                    Text(detail!,
+                        style: const TextStyle(
+                            fontSize: 13, color: AppColors.textHint)),
+                ],
+              ),
+            ),
+            if (onTap != null)
+              const Icon(Icons.chevron_right_rounded,
+                  size: 20, color: AppColors.textHint),
+          ],
+        ),
+      ),
     );
   }
 }
