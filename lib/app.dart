@@ -4,6 +4,10 @@ import 'package:go_router/go_router.dart';
 
 import 'core/theme/app_theme.dart';
 import 'features/expense/presentation/home_screen.dart';
+import 'features/menu/domain/menu.dart';
+import 'features/menu/presentation/menu_analyze_screen.dart';
+import 'features/menu/presentation/menu_screen.dart';
+import 'features/menu/presentation/menus_screen.dart';
 import 'features/receipt/presentation/receipt_analyze_screen.dart';
 import 'features/receipt/presentation/receipt_review_screen.dart';
 import 'features/settlement/presentation/settlement_screen.dart';
@@ -24,6 +28,23 @@ final _router = GoRouter(
           ReceiptReviewScreen(args: state.extra! as ReviewArgs),
     ),
     GoRoute(path: '/trip', builder: (context, state) => const TripScreen()),
+    GoRoute(path: '/menus', builder: (context, state) => const MenusScreen()),
+    GoRoute(
+      path: '/menu-analyze',
+      builder: (context, state) =>
+          MenuAnalyzeScreen(imagePaths: state.extra! as List<String>),
+    ),
+    GoRoute(
+      path: '/menu/:menuId',
+      builder: (context, state) => MenuScreen(
+        menuId: state.pathParameters['menuId']!,
+        args: switch (state.extra) {
+          final MenuScreenArgs args => args,
+          final Menu menu => MenuScreenArgs(menu: menu),
+          _ => null,
+        },
+      ),
+    ),
     GoRoute(
         path: '/settlement',
         builder: (context, state) => const SettlementScreen()),

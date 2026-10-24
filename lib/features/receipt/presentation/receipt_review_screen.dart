@@ -30,6 +30,7 @@ class ReviewArgs {
     this.payerId,
     this.participantIds = const [],
     this.rate,
+    this.source = 'receipt',
   });
 
   final Receipt receipt;
@@ -48,6 +49,9 @@ class ReviewArgs {
 
   /// 저장된 지출에 고정해 둔 환율.
   final FixedRate? rate;
+
+  /// 'menu'면 메뉴판에서 고른 주문이다 (영수증 없이 정산).
+  final String source;
 }
 
 /// 인식 결과를 확인하고 고친 뒤 저장한다. 자동 저장하지 않는다.
@@ -348,6 +352,7 @@ class _ReceiptReviewScreenState extends ConsumerState<ReceiptReviewScreen> {
             expenseId: widget.args.expenseId,
             rate: rate,
             keepRate: keepRate,
+            source: widget.args.source,
           );
       if (!mounted) return;
       ScaffoldMessenger.of(context)
@@ -377,7 +382,11 @@ class _ReceiptReviewScreenState extends ConsumerState<ReceiptReviewScreen> {
     final payer = _payer(members, ref.watch(myMemberProvider).value);
     return Scaffold(
       appBar: AppBar(
-        title: Text(args.expenseId == null ? '영수증 확인' : '지출 수정'),
+        title: Text(args.expenseId != null
+            ? '지출 수정'
+            : args.source == 'menu'
+                ? '주문 확인'
+                : '영수증 확인'),
         actions: [
           if (args.imagePaths.isNotEmpty)
             IconButton(

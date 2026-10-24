@@ -96,9 +96,19 @@ class HomeScreen extends ConsumerWidget {
                 icon: const Icon(Icons.document_scanner_outlined),
                 label: const Text('영수증 스캔하기'),
               ),
-              TextButton(
-                onPressed: () => _capture(context, ref, fromGallery: true),
-                child: const Text('앨범에서 불러오기'),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  TextButton(
+                    onPressed: () => _capture(context, ref, fromGallery: true),
+                    child: const Text('앨범에서 불러오기'),
+                  ),
+                  const Text('·', style: TextStyle(color: AppColors.textHint)),
+                  TextButton(
+                    onPressed: () => context.push('/menus'),
+                    child: const Text('메뉴판으로 주문'),
+                  ),
+                ],
               ),
             ],
           ),
@@ -270,6 +280,7 @@ class _ExpenseTile extends ConsumerWidget {
       subtitle: Text(
         [
           DateFormat('HH:mm').format(expense.paidAt),
+          if (expense.source == 'menu') '메뉴판 주문',
           if (itemCount > 0) '품목 $itemCount개',
           if (payer != null) '${payer.name} 결제',
         ].join(' · '),
@@ -333,7 +344,7 @@ class _EmptyView extends StatelessWidget {
                 style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
             const SizedBox(height: 8),
             const Text(
-              '어느 나라 영수증이든 품목과 금액을\n자동으로 정리해 드려요',
+              '어느 나라 영수증이든 품목과 금액을\n자동으로 정리해 드려요.\n영수증이 없으면 메뉴판으로 주문해 기록해요.',
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 15, color: AppColors.textHint),
             ),

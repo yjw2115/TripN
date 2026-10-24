@@ -36,6 +36,9 @@ class ExpenseRepository {
 
     /// 고칠 때 통화·날짜가 그대로면 처음 고정한 환율을 건드리지 않는다.
     bool keepRate = false,
+
+    /// 새 지출을 무엇으로 만들었는지: 'receipt'(영수증) 또는 'menu'(메뉴판 주문).
+    String source = 'receipt',
   }) {
     final data = <String, Object?>{
       'title': receipt.merchantName.isEmpty ? '이름 없는 지출' : receipt.merchantName,
@@ -63,7 +66,7 @@ class ExpenseRepository {
     return _expenses(tripId).add({
       ...data,
       'createdBy': uid,
-      'source': 'receipt',
+      'source': source,
       'createdAt': FieldValue.serverTimestamp(),
     });
   }

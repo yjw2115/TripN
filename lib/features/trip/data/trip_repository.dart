@@ -231,15 +231,17 @@ class TripRepository {
     return batch.commit();
   }
 
-  /// 하위 문서를 먼저 지우고 여행을 지운다 (소유자만).
+  /// 하위 문서(지출·메뉴판·멤버)를 먼저 지우고 여행을 지운다 (소유자만).
   /// 보안 규칙이 문서마다 여행 문서를 읽어서, 한 번에 읽을 수 있는 문서 수(20)를 넘지 않게 나눈다.
   Future<void> deleteTrip(Trip trip) async {
     final ref = _trips.doc(trip.id);
     final expenses = await ref.collection('expenses').get();
     final members = await _members(trip.id).get();
+    final menus = await ref.collection('menus').get();
     final code = trip.inviteCode;
     final docs = [
       ...expenses.docs.map((d) => d.reference),
+      ...menus.docs.map((d) => d.reference),
       ...members.docs.map((d) => d.reference),
       if (code != null) _invites.doc(code),
     ];

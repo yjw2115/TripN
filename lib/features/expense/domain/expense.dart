@@ -15,6 +15,7 @@ class Expense {
     required this.createdBy,
     this.receipt,
     this.participantIds = const [],
+    this.source = 'receipt',
     FixedRate? rate,
   }) : _rate = rate;
 
@@ -32,6 +33,9 @@ class Expense {
 
   /// 이 지출을 함께 쓴 멤버 id. 저장할 때 정한다. 비어 있으면(예전 지출) 여행 멤버 전원.
   final List<String> participantIds;
+
+  /// 'receipt'(영수증을 찍어서) 또는 'menu'(메뉴판에서 골라서).
+  final String source;
   final FixedRate? _rate;
 
   /// 지출할 때 고정한 원화 환율. 아직 못 정했으면 null (원화 지출은 언제나 1).
@@ -63,6 +67,7 @@ class Expense {
           : Receipt.fromMap(Map<String, Object?>.from(receiptMap)),
       participantIds:
           (map['participantIds'] as List?)?.cast<String>() ?? const [],
+      source: map['source'] as String? ?? 'receipt',
       rate: FixedRate.fromMap(map),
     );
   }

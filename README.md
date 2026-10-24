@@ -114,6 +114,23 @@ trips/{tripId}/expenses/{id}    participantIds                  ← 함께 쓴 �
 - 앱은 경로만 본다 (Flutter 딥 링크 → go_router `/join/:code`). 스킴의 호스트(`app`)는 쓰지 않는다.
 - 호스팅을 배포해야 링크가 동작한다: `firebase deploy --only hosting --project travelen-468bc`
 
+## 5단계: 메뉴판으로 주문
+
+홈의 "메뉴판으로 주문" → 메뉴판 찍기(여러 장 가능) → 한국어로 번역된 메뉴에서 고르기 → 미리 보는 영수증 → 주문 확인(영수증 확인 화면과 같음) → 지출로 저장 (`source: 'menu'`, 영수증 없이 정산)
+
+```
+trips/{tripId}/menus/{menuId}   storeName, currency, countryCode, taxIncluded, taxRatePercent,
+                                serviceChargePercent, items[{id, name, nameKo, descriptionKo, section, priceMinor}]
+```
+
+- 인식: `lib/features/menu/data/menu_prompt.dart` (Gemini, 영수증과 같은 모델·호출 방식). 크기·온도별 가격은 메뉴를 나누고("카페라테 (아이스)"),
+  가격대("600-800-1,000")는 소/중/대로 나눈다. 한국 메뉴판의 "4.5"(4,500원), "12"(12,000원), 싯가도 규칙에 있다.
+- 세금·봉사료: 메뉴판에 적힌 대로(税込/税抜, "++", "service charge"). 적혀 있지 않으면 나라 관행을 따른다
+  (미국·캐나다는 별도, 그 밖은 포함). 별도인데 세율이 없으면 일본 10, 태국 7, 싱가포르 9, 말레이시아 6. 메뉴 화면에서 고칠 수 있다.
+- 미리 보는 영수증: 소계 + 봉사료(소계 기준) + 별도 세금(소계 + 봉사료 기준) + 팁. 미국·캐나다는 팁 15/18/20% 칩.
+- 찍은 메뉴판은 여행에 가게별로 남아서 같은 가게에서 다시 주문할 때 다시 찍지 않는다. 메뉴 이름·가격·가게 이름을 고칠 수 있다.
+- 인식 확인: `dart run tool/menu_eval/eval.dart` (Wikimedia Commons의 일본·태국·베트남·미국·대만·한국 메뉴판, `tool/menu_eval/cases.json`)
+
 ## Firebase 설정 (travelen-468bc)
 
 1. AI Logic → 시작하기 → Gemini Developer API

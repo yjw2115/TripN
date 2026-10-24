@@ -395,6 +395,31 @@ describe('exchange rates', () => {
   });
 });
 
+describe('menus', () => {
+  const menu = (createdBy) => ({
+    storeName: '一蘭',
+    currency: 'JPY',
+    items: [{ id: 'i0', name: 'ラーメン', nameKo: '라멘', priceMinor: 980 }],
+    createdBy,
+  });
+
+  test('members save, fix and delete menus; outsiders cannot', async () => {
+    await createTrip('alice');
+    const d = db('alice');
+    await assertSucceeds(setDoc(doc(d, 'trips', TRIP, 'menus', 'm1'), menu('alice')));
+    await assertSucceeds(updateDoc(doc(d, 'trips', TRIP, 'menus', 'm1'), { storeName: '이치란' }));
+    await assertFails(updateDoc(doc(d, 'trips', TRIP, 'menus', 'm1'), { items: 'broken' }));
+    await assertFails(getDoc(doc(db('bob'), 'trips', TRIP, 'menus', 'm1')));
+    await assertFails(setDoc(doc(db('bob'), 'trips', TRIP, 'menus', 'm2'), menu('bob')));
+    await assertSucceeds(writeBatch(d).delete(doc(d, 'trips', TRIP, 'menus', 'm1')).commit());
+  });
+
+  test('a menu is saved in your own name', async () => {
+    await createTrip('alice');
+    await assertFails(setDoc(doc(db('alice'), 'trips', TRIP, 'menus', 'm1'), menu('bob')));
+  });
+});
+
 describe('trips from 1.0.0+3', () => {
   beforeEach(async () => {
     await env.withSecurityRulesDisabled(async (ctx) => {

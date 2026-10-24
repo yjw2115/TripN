@@ -12,6 +12,9 @@ import 'core/money/exchange_rate.dart';
 import 'features/expense/data/exchange_rate_repository.dart';
 import 'features/expense/data/expense_repository.dart';
 import 'features/expense/domain/expense.dart';
+import 'features/menu/data/menu_parser.dart';
+import 'features/menu/data/menu_repository.dart';
+import 'features/menu/domain/menu.dart';
 import 'features/receipt/data/gemini_receipt_parser.dart';
 import 'features/receipt/data/receipt_image_service.dart';
 import 'features/receipt/data/receipt_parser.dart';
@@ -20,6 +23,11 @@ import 'features/trip/domain/trip.dart';
 
 final receiptParserProvider =
     Provider<ReceiptParser>((ref) => GeminiReceiptParser());
+
+final menuParserProvider = Provider<MenuParser>((ref) => GeminiMenuParser());
+
+final menuRepositoryProvider =
+    Provider<MenuRepository>((ref) => MenuRepository(FirebaseFirestore.instance));
 
 final receiptImageServiceProvider =
     Provider<ReceiptImageService>((ref) => ReceiptImageService());
@@ -143,4 +151,16 @@ final rateBackfillProvider = Provider<void>((ref) {
   ref.listen(expensesProvider, (_, _) => scan());
   ref.listen(currentTripProvider, (_, _) => scan());
   scan();
+});
+
+/// 지금 여행에서 찍어 둔 메뉴판 (가게별).
+final menusProvider = StreamProvider<List<Menu>>((ref) async* {
+  final tripId = await ref.watch(currentTripProvider.selectAsync((t) => t.id));
+  yield* ref.watch(menuRepositoryProvider).watchMenus(tripId);
+});
+
+final menuProvider =
+    StreamProvider.autoDispose.family<Menu?, String>((ref, menuId) async* {
+  final tripId = await ref.watch(currentTripProvider.selectAsync((t) => t.id));
+  yield* ref.watch(menuRepositoryProvider).watchMenu(tripId, menuId);
 });

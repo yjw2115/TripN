@@ -138,6 +138,17 @@ service cloud.firestore {
           || (request.resource.data.krwRate is number && request.resource.data.krwRate > 0);
       }
 
+      // 찍은 메뉴판. 같은 가게에서 다시 주문할 때 쓴다.
+      match /menus/{menuId} {
+        allow read, delete: if isMember(tripId);
+        allow create: if isMember(tripId)
+          && request.resource.data.createdBy == request.auth.uid
+          && request.resource.data.items is list;
+        allow update: if isMember(tripId)
+          && request.resource.data.createdBy == resource.data.createdBy
+          && request.resource.data.items is list;
+      }
+
       match /expenses/{expenseId} {
         allow read, delete: if isMember(tripId);
         allow create: if isMember(tripId)
