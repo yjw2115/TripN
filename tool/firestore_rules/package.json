@@ -1,0 +1,12 @@
+{
+  "name": "travelen-firestore-rules-test",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "PATH=\"${JAVA_HOME:+$JAVA_HOME/bin:}$PATH\" firebase emulators:exec --only firestore --project demo-travelen --config ../../firebase.json 'node --test'"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.2",
+    "firebase": "^12.19.0"
+  }
+}

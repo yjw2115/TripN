@@ -175,6 +175,7 @@ Future<String?> showTextSheet(
   required String title,
   required String initial,
   String hint = '',
+  int? maxLength,
 }) {
   final controller = TextEditingController(text: initial);
   return showAppSheet<String>(
@@ -186,8 +187,10 @@ Future<String?> showTextSheet(
       child: TextField(
         controller: controller,
         autofocus: true,
+        maxLength: maxLength,
         style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-        decoration: InputDecoration(hintText: hint),
+        decoration: InputDecoration(hintText: hint, counterText: ''),
+        onSubmitted: (text) => Navigator.pop(context, text.trim()),
       ),
     ),
   );

@@ -3,10 +3,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../receipt/domain/receipt.dart';
 import '../domain/expense.dart';
 
-/// Firestore 구조
-///   trips/{tripId}                    name, ownerId, memberIds, createdAt
+/// Firestore 구조 (여행·멤버는 TripRepository)
 ///   trips/{tripId}/expenses/{id}      title, category, currency, totalMinor,
-///                                     paidAt, payerId, createdBy, receipt{...}
+///                                     paidAt, payerId(멤버 id), createdBy, receipt{...}
 class ExpenseRepository {
   ExpenseRepository(this._db);
 
@@ -18,24 +17,6 @@ class ExpenseRepository {
   CollectionReference<Map<String, dynamic>> _expenses(String tripId) =>
       _trips.doc(tripId).collection('expenses');
 
-  /// 사용자의 여행을 하나 가져오고, 없으면 기본 여행을 만든다.
-  Future<Trip> ensureDefaultTrip(String uid) async {
-    final existing =
-        await _trips.where('memberIds', arrayContains: uid).limit(1).get();
-    if (existing.docs.isNotEmpty) {
-      final doc = existing.docs.first;
-      return Trip.fromMap(doc.id, doc.data());
-    }
-    final ref = _trips.doc();
-    await ref.set({
-      'name': '내 여행',
-      'ownerId': uid,
-      'memberIds': [uid],
-      'createdAt': FieldValue.serverTimestamp(),
-    });
-    return Trip(id: ref.id, name: '내 여행', ownerId: uid, memberIds: [uid]);
-  }
-
   Stream<List<Expense>> watchExpenses(String tripId) => _expenses(tripId)
       .orderBy('paidAt', descending: true)
       .snapshots()
@@ -44,6 +25,7 @@ class ExpenseRepository {
   Future<void> saveReceipt({
     required String tripId,
     required String uid,
+    required String payerId,
     required Receipt receipt,
     String? expenseId,
   }) {
@@ -54,6 +36,7 @@ class ExpenseRepository {
       'totalMinor': receipt.totalMinor,
       'paidAt': (receipt.paidAt ?? DateTime.now()).toIso8601String(),
       'receipt': receipt.toMap(),
+      'payerId': payerId,
       'updatedAt': FieldValue.serverTimestamp(),
     };
     if (expenseId != null) {
@@ -61,7 +44,6 @@ class ExpenseRepository {
     }
     return _expenses(tripId).add({
       ...data,
-      'payerId': uid,
       'createdBy': uid,
       'source': 'receipt',
       'createdAt': FieldValue.serverTimestamp(),

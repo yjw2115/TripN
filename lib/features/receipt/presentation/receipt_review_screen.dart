@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -9,6 +10,8 @@ import '../../../app_providers.dart';
 import '../../../core/money/currency.dart';
 import '../../../core/money/money_format.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../trip/domain/trip.dart';
+import '../../trip/presentation/widgets/trip_widgets.dart';
 import '../domain/receipt.dart';
 import '../domain/receipt_validator.dart';
 import 'widgets/category_badge.dart';
@@ -22,6 +25,7 @@ class ReviewArgs {
     this.receiptCount = 1,
     this.imagePaths = const [],
     this.expenseId,
+    this.payerId,
   });
 
   final Receipt receipt;
@@ -31,6 +35,9 @@ class ReviewArgs {
 
   /// 이미 저장된 지출을 고칠 때만 있다.
   final String? expenseId;
+
+  /// 저장된 지출의 결제자. 새 영수증이면 비워 두고 나로 시작한다.
+  final String? payerId;
 }
 
 /// 인식 결과를 확인하고 고친 뒤 저장한다. 자동 저장하지 않는다.
@@ -46,6 +53,7 @@ class ReceiptReviewScreen extends ConsumerStatefulWidget {
 
 class _ReceiptReviewScreenState extends ConsumerState<ReceiptReviewScreen> {
   late Receipt _receipt = widget.args.receipt;
+  late String? _payerId = widget.args.payerId;
   bool _saving = false;
 
   Currency get _currency => _receipt.currency;
@@ -151,6 +159,51 @@ class _ReceiptReviewScreenState extends ConsumerState<ReceiptReviewScreen> {
     ));
   }
 
+  /// 고른 결제자가 목록에 없으면(아직 못 불러왔거나 지워졌으면) 나.
+  Member? _payer(List<Member> members, Member? me) =>
+      members.firstWhereOrNull((m) => m.id == _payerId) ?? me;
+
+  Future<void> _editPayer(List<Member> members, Member? current) async {
+    final picked = await showAppSheet<String>(
+      context,
+      (context) => SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(24, 0, 24, 12),
+              child: Text('누가 냈나요?',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
+            ),
+            Flexible(
+              child: ListView(
+                shrinkWrap: true,
+                padding: const EdgeInsets.fromLTRB(8, 0, 8, 16),
+                children: [
+                  for (final m in members)
+                    ListTile(
+                      leading: MemberAvatar(m),
+                      title: Text(m.name,
+                          style: const TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.w600)),
+                      trailing: m.id == current?.id
+                          ? const Icon(Icons.check_rounded,
+                              color: AppColors.primaryDeep)
+                          : null,
+                      onTap: () => Navigator.pop(context, m.id),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (picked != null) setState(() => _payerId = picked);
+  }
+
   Future<void> _editItem(ReceiptItem item, {bool isNew = false}) async {
     final result = await showItemSheet(context,
         item: item, currency: _currency, isNew: isNew);
@@ -185,9 +238,14 @@ class _ReceiptReviewScreenState extends ConsumerState<ReceiptReviewScreen> {
     try {
       final user = await ref.read(currentUserProvider.future);
       final trip = await ref.read(currentTripProvider.future);
+      final members = await ref.read(membersProvider.future);
+      final me = await ref.read(myMemberProvider.future);
+      final payer = _payer(members, me);
+      if (payer == null) throw StateError('No member to record as the payer');
       await ref.read(expenseRepositoryProvider).saveReceipt(
             tripId: trip.id,
             uid: user.uid,
+            payerId: payer.id,
             receipt: _receipt,
             expenseId: widget.args.expenseId,
           );
@@ -215,6 +273,8 @@ class _ReceiptReviewScreenState extends ConsumerState<ReceiptReviewScreen> {
   Widget build(BuildContext context) {
     final check = checkReceipt(_receipt);
     final args = widget.args;
+    final members = ref.watch(membersProvider).value ?? const <Member>[];
+    final payer = _payer(members, ref.watch(myMemberProvider).value);
     return Scaffold(
       appBar: AppBar(
         title: Text(args.expenseId == null ? '영수증 확인' : '지출 수정'),
@@ -238,6 +298,9 @@ class _ReceiptReviewScreenState extends ConsumerState<ReceiptReviewScreen> {
             onDate: _editDate,
             onTotal: _editTotal,
             onCurrency: _editCurrency,
+            // 혼자인 여행에서는 결제자를 고를 일이 없다.
+            payerName: members.length > 1 ? payer?.name : null,
+            onPayer: () => _editPayer(members, payer),
           ),
           const SizedBox(height: 12),
           if (args.receiptCount > 1) ...[
@@ -402,6 +465,8 @@ class _HeaderCard extends StatelessWidget {
     required this.onDate,
     required this.onTotal,
     required this.onCurrency,
+    required this.payerName,
+    required this.onPayer,
   });
 
   final Receipt receipt;
@@ -411,6 +476,8 @@ class _HeaderCard extends StatelessWidget {
   final VoidCallback onDate;
   final VoidCallback onTotal;
   final VoidCallback onCurrency;
+  final String? payerName;
+  final VoidCallback onPayer;
 
   @override
   Widget build(BuildContext context) {
@@ -481,14 +548,15 @@ class _HeaderCard extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 12),
-        Row(
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
           children: [
             _Pill(
               icon: Icons.payments_outlined,
               label: '${receipt.currency.nameKo} ${receipt.currency.code}',
               onTap: onCurrency,
             ),
-            const SizedBox(width: 8),
             _Pill(
               icon: Icons.schedule_rounded,
               label: paidAt == null
@@ -496,6 +564,12 @@ class _HeaderCard extends StatelessWidget {
                   : DateFormat('M월 d일 HH:mm', 'ko').format(paidAt),
               onTap: onDate,
             ),
+            if (payerName != null)
+              _Pill(
+                icon: Icons.person_outline_rounded,
+                label: '$payerName 결제',
+                onTap: onPayer,
+              ),
           ],
         ),
         const SizedBox(height: 8),

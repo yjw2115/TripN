@@ -3,12 +3,24 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:travelen/app_providers.dart';
 import 'package:travelen/core/money/currency.dart';
 import 'package:travelen/features/receipt/domain/receipt.dart';
 import 'package:travelen/features/receipt/presentation/receipt_review_screen.dart';
+import 'package:travelen/features/trip/domain/trip.dart';
 
-Widget _wrap(Receipt receipt, {List<String> warnings = const []}) =>
+const _me = Member(id: 'me', name: '지민', uid: 'uid-me');
+const _minsu = Member(id: 'g1', name: '민수');
+
+/// Firebase 없이 그리도록 동행자 목록만 넣어 준다.
+Widget _wrap(Receipt receipt,
+        {List<String> warnings = const [],
+        List<Member> members = const [_me]}) =>
     ProviderScope(
+      overrides: [
+        membersProvider.overrideWith((ref) => Stream.value(members)),
+        myMemberProvider.overrideWith((ref) async => _me),
+      ],
       child: MaterialApp(
         locale: const Locale('ko'),
         supportedLocales: const [Locale('ko')],
@@ -117,6 +129,30 @@ void main() {
     expect(find.textContaining('품목 합계'), findsNothing);
     expect(find.text('총액만 있는 영수증이에요'), findsNothing);
     expect(find.text('총 결제 금액을 입력해 주세요'), findsOneWidget);
+  });
+
+  testWidgets('a solo trip does not ask who paid', (tester) async {
+    await tester.pumpWidget(_wrap(_thaiReceipt(totalMinor: 16800)));
+    await tester.pump();
+
+    expect(find.text('지민 결제'), findsNothing);
+    expect(find.byIcon(Icons.person_outline_rounded), findsNothing);
+  });
+
+  testWidgets('with companions, the payer starts as me and can be changed',
+      (tester) async {
+    await tester.pumpWidget(
+        _wrap(_thaiReceipt(totalMinor: 16800), members: const [_me, _minsu]));
+    await tester.pump();
+
+    expect(find.text('지민 결제'), findsOneWidget);
+    await tester.tap(find.text('지민 결제'));
+    await tester.pumpAndSettle();
+    expect(find.text('누가 냈나요?'), findsOneWidget);
+
+    await tester.tap(find.text('민수'));
+    await tester.pumpAndSettle();
+    expect(find.text('민수 결제'), findsOneWidget);
   });
 
   testWidgets('can replace the total with the item sum', (tester) async {

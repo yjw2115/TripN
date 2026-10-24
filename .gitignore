@@ -54,3 +54,6 @@ app.*.map.json
 # Firebase 배포 캐시, Xcode 아카이브 산출물
 /.firebase/
 /ios/build/
+
+# Firestore 규칙 테스트 (tool/firestore_rules)
+/tool/firestore_rules/node_modules/

@@ -17,6 +17,40 @@
 - 인식기는 `ReceiptParser` 인터페이스 뒤에 있다. 나중에 온디바이스 OCR 구현으로 바꿔 끼운다.
 - 품목마다 `participantIds`가 있어서 2단계에서 품목 단위로 나눠 낼 수 있다.
 
+## 2단계: 여행 · 동행자
+
+```
+users/{uid}                         currentTripId (고른 여행)
+trips/{tripId}                      name, ownerId, memberUids(앱 사용자 uid), inviteCode
+trips/{tripId}/members/{memberId}   name, uid (이름만 있는 동행자는 null)
+trips/{tripId}/expenses/{id}        ... payerId(멤버 id), receipt.items[].participantIds(멤버 id)
+invites/{code}                      tripId, tripName
+```
+
+- 결제자와 품목 참여자는 uid가 아니라 **멤버 id**를 가리킨다. 그래서 앱을 쓰지 않는 사람도 이름만으로 정산에 넣을 수 있다.
+- 앱 사용자가 스스로 만든 멤버(여행을 만들거나 초대로 들어온 사람)는 문서 id가 uid다. 이름으로 추가한 동행자는 자동 id다.
+- 초대: 여행 설정 → 초대 코드 보내기 → 받은 사람이 홈의 여행 이름 → 초대 코드로 참여하기.
+  참여한 뒤 이름만 있던 동행자 중 자기를 고르면 그 멤버에 uid가 채워져 기록이 이어진다.
+- 나가기: 내 멤버는 이름만 있는 동행자로 남는다 (지출 기록이 깨지지 않게). 소유자는 나갈 수 없고 여행을 지운다.
+- 1.0.0+3까지 만든 여행(`memberIds`)은 앱이 처음 열 때 새 구조로 옮긴다. 옛 지출의 payerId(uid)가 그대로 내 멤버 id가 된다.
+
+### 보안 규칙 테스트
+
+에뮬레이터에서 돈다. firebase-tools가 Java 21 이상을 요구하는데, 이 맥의 기본 java는 17이라
+`JAVA_HOME`으로 Android Studio에 든 JBR을 넘긴다 (`npm test`가 그 java를 먼저 쓴다).
+
+```bash
+cd tool/firestore_rules && npm install
+JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" npm test
+```
+
+규칙을 배포하기 전에 앱으로 확인하려면 에뮬레이터를 띄우고 디버그 빌드에 `FIRESTORE_EMULATOR`를 준다.
+
+```bash
+PATH="/Applications/Android Studio.app/Contents/jbr/Contents/Home/bin:$PATH" firebase emulators:start --only firestore --project travelen-468bc
+flutter run --dart-define-from-file=dart_defines.local.json --dart-define=FIRESTORE_EMULATOR=localhost:8080
+```
+
 ## Firebase 설정 (travelen-468bc)
 
 1. AI Logic → 시작하기 → Gemini Developer API

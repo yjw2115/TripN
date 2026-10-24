@@ -12,6 +12,7 @@ import '../../../core/money/money_format.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../receipt/presentation/receipt_review_screen.dart';
 import '../../receipt/presentation/widgets/category_badge.dart';
+import '../../trip/presentation/trip_sheets.dart';
 import '../domain/expense.dart';
 
 class HomeScreen extends ConsumerWidget {
@@ -42,9 +43,37 @@ class HomeScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final trip = ref.watch(currentTripProvider);
     final expenses = ref.watch(expensesProvider);
+    final memberCount = ref.watch(membersProvider).value?.length;
     return Scaffold(
       appBar: AppBar(
-        title: Text(trip.value?.name ?? '여행N'),
+        title: InkWell(
+          onTap: trip.hasValue ? () => showTripSwitcher(context, ref) : null,
+          borderRadius: BorderRadius.circular(8),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(
+                  child: Text(trip.value?.name ?? '여행N',
+                      overflow: TextOverflow.ellipsis),
+                ),
+                const Icon(Icons.expand_more_rounded,
+                    color: AppColors.textSub),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          if (memberCount != null)
+            TextButton.icon(
+              onPressed: () => context.push('/trip'),
+              style: TextButton.styleFrom(foregroundColor: AppColors.textSub),
+              icon: const Icon(Icons.group_outlined, size: 20),
+              label: Text('$memberCount명'),
+            ),
+          const SizedBox(width: 8),
+        ],
       ),
       // Riverpod이 자동 재시도하는 동안에도 상태는 로딩이라, 오류가 있으면 먼저 보여준다.
       body: expenses.hasValue
@@ -184,6 +213,10 @@ class _ExpenseTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final receipt = expense.receipt;
     final itemCount = receipt?.items.length ?? 0;
+    final members = ref.watch(membersProvider).value ?? const [];
+    final payer = members.length > 1
+        ? members.firstWhereOrNull((m) => m.id == expense.payerId)
+        : null;
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
       leading: CategoryBadge(expense.category, size: 40),
@@ -195,6 +228,7 @@ class _ExpenseTile extends ConsumerWidget {
         [
           DateFormat('HH:mm').format(expense.paidAt),
           if (itemCount > 0) '품목 $itemCount개',
+          if (payer != null) '${payer.name} 결제',
         ].join(' · '),
         style: const TextStyle(fontSize: 13, color: AppColors.textHint),
       ),
@@ -203,7 +237,10 @@ class _ExpenseTile extends ConsumerWidget {
       onTap: receipt == null
           ? null
           : () => context.push('/review',
-              extra: ReviewArgs(receipt: receipt, expenseId: expense.id)),
+              extra: ReviewArgs(
+                  receipt: receipt,
+                  expenseId: expense.id,
+                  payerId: expense.payerId)),
       onLongPress: () => _delete(context, ref),
     );
   }

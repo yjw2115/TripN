@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
@@ -13,6 +14,10 @@ import 'firebase_options.dart';
 /// 비워 두면 SDK가 기기마다 토큰을 만들어 로그에 출력한다.
 const _appCheckDebugToken = String.fromEnvironment('APP_CHECK_DEBUG_TOKEN');
 
+/// 디버그 빌드에서 `--dart-define=FIRESTORE_EMULATOR=localhost:8080`을 주면 로컬 에뮬레이터를 쓴다.
+/// 보안 규칙을 배포하기 전에 앱으로 확인할 때 쓴다.
+const _firestoreEmulator = String.fromEnvironment('FIRESTORE_EMULATOR');
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
@@ -27,6 +32,10 @@ Future<void> main() async {
             debugToken: _appCheckDebugToken.isEmpty ? null : _appCheckDebugToken)
         : const AppleAppAttestWithDeviceCheckFallbackProvider(),
   );
+  if (kDebugMode && _firestoreEmulator.isNotEmpty) {
+    final [host, port] = _firestoreEmulator.split(':');
+    FirebaseFirestore.instance.useFirestoreEmulator(host, int.parse(port));
+  }
   await initializeDateFormatting('ko');
   runApp(const ProviderScope(retry: _retry, child: TravelenApp()));
 }

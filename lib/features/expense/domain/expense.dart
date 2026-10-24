@@ -1,28 +1,6 @@
 import '../../../core/money/currency.dart';
 import '../../receipt/domain/receipt.dart';
 
-/// 여행(모임). 1단계에서는 사용자마다 기본 여행 하나를 자동으로 만든다.
-class Trip {
-  const Trip({
-    required this.id,
-    required this.name,
-    required this.ownerId,
-    required this.memberIds,
-  });
-
-  final String id;
-  final String name;
-  final String ownerId;
-  final List<String> memberIds;
-
-  factory Trip.fromMap(String id, Map<String, Object?> map) => Trip(
-        id: id,
-        name: map['name'] as String? ?? '',
-        ownerId: map['ownerId'] as String? ?? '',
-        memberIds: (map['memberIds'] as List?)?.cast<String>() ?? const [],
-      );
-}
-
 /// 여행 중 지출 한 건. 영수증으로 만들었으면 [receipt]에 품목이 들어 있다.
 class Expense {
   const Expense({
@@ -43,9 +21,17 @@ class Expense {
   final Currency currency;
   final int totalMinor;
   final DateTime paidAt;
+
+  /// 낸 사람의 멤버 id (`trips/{tripId}/members/{id}`).
   final String payerId;
   final String createdBy;
   final Receipt? receipt;
+
+  /// 이 멤버가 결제자이거나 품목 참여자면 true. 멤버를 지워도 되는지 볼 때 쓴다.
+  bool involves(String memberId) =>
+      payerId == memberId ||
+      (receipt?.items.any((i) => i.participantIds.contains(memberId)) ??
+          false);
 
   factory Expense.fromMap(String id, Map<String, Object?> map) {
     final receiptMap = map['receipt'] as Map?;

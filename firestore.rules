@@ -1,35 +1,140 @@
 rules_version = '2';
 
-// 여행 멤버만 그 여행과 지출을 읽고 쓸 수 있다.
+// 여행에 들어간 앱 사용자(trips.memberUids)만 그 여행의 동행자와 지출을 읽고 쓸 수 있다.
 service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() {
       return request.auth != null;
     }
 
+    function tripPath(tripId) {
+      return /databases/$(database)/documents/trips/$(tripId);
+    }
+
     function isMember(tripId) {
-      return signedIn() &&
-        request.auth.uid in get(/databases/$(database)/documents/trips/$(tripId)).data.memberIds;
+      return signedIn() && request.auth.uid in get(tripPath(tripId)).data.memberUids;
+    }
+
+    // 여행을 만들거나 초대로 들어가는 일괄 쓰기 안에서는 쓰기 뒤 상태로 본다.
+    function isMemberAfter(tripId) {
+      return signedIn() && request.auth.uid in getAfter(tripPath(tripId)).data.memberUids;
+    }
+
+    function validName(name) {
+      return name is string && name.size() > 0 && name.size() <= 30;
+    }
+
+    function changedKeys() {
+      return request.resource.data.diff(resource.data).affectedKeys();
+    }
+
+    match /users/{uid} {
+      allow read, write: if signedIn() && request.auth.uid == uid;
+    }
+
+    // 초대 코드 → 여행. 코드를 아는 사람만 열 수 있게 목록 조회는 막는다.
+    match /invites/{code} {
+      allow get: if signedIn();
+      allow create: if isMemberAfter(request.resource.data.tripId)
+        && getAfter(tripPath(request.resource.data.tripId)).data.inviteCode == code
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.keys().hasOnly(['tripId', 'tripName', 'createdBy', 'createdAt']);
+      allow update: if isMember(resource.data.tripId)
+        && changedKeys().hasOnly(['tripName']);
+      allow delete: if isMember(resource.data.tripId);
     }
 
     match /trips/{tripId} {
-      allow read: if signedIn() && request.auth.uid in resource.data.memberIds;
+      allow read: if signedIn() && request.auth.uid in resource.data.memberUids;
+
       allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['name', 'ownerId', 'memberUids', 'createdAt'])
+        && validName(request.resource.data.name)
         && request.resource.data.ownerId == request.auth.uid
-        && request.auth.uid in request.resource.data.memberIds;
+        && request.resource.data.memberUids == [request.auth.uid];
+
+      // 멤버: 이름과 초대 코드를 바꾸고, 소유자가 아니면 자기 uid를 뺄 수 있다(나가기).
       allow update: if signedIn()
-        && request.auth.uid in resource.data.memberIds
-        && request.resource.data.ownerId == resource.data.ownerId;
+        && request.auth.uid in resource.data.memberUids
+        && changedKeys().hasOnly(['name', 'inviteCode', 'memberUids'])
+        && validName(request.resource.data.name)
+        && (!('inviteCode' in changedKeys())
+            || existsAfter(/databases/$(database)/documents/invites/$(request.resource.data.inviteCode)))
+        && (!('memberUids' in changedKeys())
+            || (request.auth.uid != resource.data.ownerId
+                && request.resource.data.memberUids.toSet()
+                     == resource.data.memberUids.toSet().difference([request.auth.uid].toSet())));
+
+      // 초대 코드로 참여: 자기 uid만 더한다. 같은 일괄 쓰기로 만든 내 멤버 문서에
+      // 지금 초대 코드(joinCode)가 있어야 해서, 여행 id만 알아서는 들어올 수 없다.
+      allow update: if signedIn()
+        && !(request.auth.uid in resource.data.memberUids)
+        && changedKeys().hasOnly(['memberUids'])
+        && request.resource.data.memberUids.toSet()
+             == resource.data.memberUids.toSet().union([request.auth.uid].toSet())
+        && resource.data.get('inviteCode', null) != null
+        && getAfter(/databases/$(database)/documents/trips/$(tripId)/members/$(request.auth.uid))
+             .data.get('joinCode', null) == resource.data.inviteCode;
+
+      // 1.0.0+3까지 만든 여행(memberIds에 uid, 멤버 문서 없음)을 소유자가 새 구조로 옮긴다.
+      allow read: if signedIn() && request.auth.uid in resource.data.memberIds;
+      allow update: if signedIn()
+        && resource.data.ownerId == request.auth.uid
+        && !('memberUids' in resource.data)
+        && request.auth.uid in resource.data.get('memberIds', [])
+        && changedKeys().hasOnly(['memberIds', 'memberUids'])
+        && !('memberIds' in request.resource.data)
+        && request.resource.data.memberUids == [request.auth.uid];
+
       allow delete: if signedIn() && resource.data.ownerId == request.auth.uid;
+
+      function validMember(data) {
+        return data.keys().hasOnly(['name', 'uid', 'createdBy', 'createdAt', 'joinCode'])
+          && 'uid' in data
+          && validName(data.name);
+      }
+
+      match /members/{memberId} {
+        allow read: if isMember(tripId);
+
+        // 이름만 있는 동행자는 멤버 누구나 만든다.
+        // 앱 사용자 멤버는 본인만, 자기 uid를 문서 id로 만든다.
+        allow create: if isMemberAfter(tripId)
+          && validMember(request.resource.data)
+          && request.resource.data.createdBy == request.auth.uid
+          && (request.resource.data.uid == null
+              || (memberId == request.auth.uid && request.resource.data.uid == request.auth.uid));
+
+        // 이름은 누구나 고친다. uid는 비어 있는 동행자를 나로 연결하거나 내 연결을 끊을 때만 바뀐다.
+        // 나가기는 쓰기 전, 다시 들어오기는 쓰기 뒤에만 멤버라서 둘 다 본다.
+        allow update: if (isMember(tripId) || isMemberAfter(tripId))
+          && validMember(request.resource.data)
+          && request.resource.data.createdBy == resource.data.createdBy
+          && (request.resource.data.uid == resource.data.uid
+              || (resource.data.uid == null && request.resource.data.uid == request.auth.uid)
+              || (resource.data.uid == request.auth.uid && request.resource.data.uid == null));
+
+        // 이름만 있는 동행자와 내 멤버는 멤버가 지운다. 소유자는 여행을 지울 때 모두 지운다.
+        allow delete: if isMember(tripId)
+          && (resource.data.uid == null
+              || resource.data.uid == request.auth.uid
+              || get(tripPath(tripId)).data.ownerId == request.auth.uid);
+      }
+
+      function payerIsMember() {
+        return exists(/databases/$(database)/documents/trips/$(tripId)/members/$(request.resource.data.payerId));
+      }
 
       match /expenses/{expenseId} {
         allow read, delete: if isMember(tripId);
         allow create: if isMember(tripId)
           && request.resource.data.createdBy == request.auth.uid
-          && request.resource.data.totalMinor is int;
+          && request.resource.data.totalMinor is int
+          && payerIsMember();
         allow update: if isMember(tripId)
           && request.resource.data.createdBy == resource.data.createdBy
-          && request.resource.data.totalMinor is int;
+          && request.resource.data.totalMinor is int
+          && payerIsMember();
       }
     }
   }
