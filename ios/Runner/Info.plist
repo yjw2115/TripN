@@ -22,17 +22,6 @@
 	<string>$(FLUTTER_BUILD_NAME)</string>
 	<key>CFBundleSignature</key>
 	<string>????</string>
-	<key>CFBundleVersion</key>
-	<string>$(FLUTTER_BUILD_NUMBER)</string>
-	<key>ITSAppUsesNonExemptEncryption</key>
-	<false/>
-	<key>LSRequiresIPhoneOS</key>
-	<true/>
-	<key>NSCameraUsageDescription</key>
-	<string>영수증을 촬영해 품목과 금액을 자동으로 정리하려면 카메라 접근이 필요해요.</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>앨범에 있는 영수증 사진을 불러오려면 사진 접근이 필요해요.</string>
-	<!-- 카카오톡처럼 Universal Link를 앱으로 넘겨주지 않는 브라우저에서 초대 페이지가 tripn://app/join/{코드}로 연다 -->
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
@@ -44,9 +33,18 @@
 			</array>
 		</dict>
 	</array>
-	<!-- 링크의 경로(/join/{코드})를 go_router로 넘긴다 (기본값이지만 명시해 둔다) -->
+	<key>CFBundleVersion</key>
+	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>FlutterDeepLinkingEnabled</key>
 	<true/>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>영수증을 촬영해 품목과 금액을 자동으로 정리하려면 카메라 접근이 필요해요.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>앨범에 있는 영수증 사진을 불러오려면 사진 접근이 필요해요.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
