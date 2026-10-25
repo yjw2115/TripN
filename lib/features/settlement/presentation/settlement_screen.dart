@@ -734,7 +734,7 @@ class _SettledSheet extends StatelessWidget {
   }
 }
 
-/// 현지 화폐로도 볼 통화를 고른다. 외화를 여러 개 썼을 때 바꿀 수 있다.
+/// 현지 화폐로도 볼 통화를 드롭다운으로 고른다. 외화를 여러 개 썼을 때 바꿀 수 있다.
 class _LocalCurrencyPicker extends StatelessWidget {
   const _LocalCurrencyPicker(
       {required this.options, required this.selected, required this.onSelected});
@@ -745,25 +745,55 @@ class _LocalCurrencyPicker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      children: [
-        const Text('함께 볼 화폐',
-            style: TextStyle(fontSize: 14, color: AppColors.textSub)),
-        for (final o in options)
-          ChoiceChip(
-            label: Text('${o.currency.nameKo} ${o.currency.code}'),
-            selected: selected?.currency == o.currency,
-            onSelected: (_) => onSelected(o.currency.code),
+    DropdownMenuItem<String> item(Currency c, String label) =>
+        DropdownMenuItem(
+          value: c.code,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (c.flag.isNotEmpty) ...[
+                Text(c.flag, style: const TextStyle(fontSize: 18)),
+                const SizedBox(width: 8),
+              ],
+              Text(label,
+                  style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.text)),
+            ],
           ),
-        ChoiceChip(
-          label: const Text('원화만'),
-          selected: selected == null,
-          onSelected: (_) => onSelected(Currency.krw.code),
-        ),
-      ],
+        );
+
+    return Container(
+      padding: const EdgeInsets.only(left: 20, right: 12),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        children: [
+          const Text('함께 볼 화폐',
+              style: TextStyle(fontSize: 14, color: AppColors.textSub)),
+          const Spacer(),
+          DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: selected?.currency.code ?? Currency.krw.code,
+              borderRadius: BorderRadius.circular(16),
+              dropdownColor: AppColors.surface,
+              icon: const Icon(Icons.expand_more_rounded,
+                  color: AppColors.textSub),
+              items: [
+                for (final o in options)
+                  item(o.currency, '${o.currency.nameKo} ${o.currency.code}'),
+                item(Currency.krw, '원화만'),
+              ],
+              onChanged: (code) {
+                if (code != null) onSelected(code);
+              },
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

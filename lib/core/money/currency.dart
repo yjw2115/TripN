@@ -25,6 +25,23 @@ class Currency {
 
   double toMajor(int minor) => minor / minorFactor;
 
+  /// 이 통화를 쓰는 나라(유로는 EU) 국기 이모지. 모르는 통화면 빈 문자열.
+  String get flag {
+    final region = _regions[code];
+    if (region == null) return '';
+    // 'J' 'P' → 지역 표시 문자 🇯 🇵 → 🇯🇵
+    return String.fromCharCodes(
+        region.codeUnits.map((c) => 0x1F1E6 + c - 0x41));
+  }
+
+  static const _regions = {
+    'KRW': 'KR', 'JPY': 'JP', 'USD': 'US', 'EUR': 'EU', 'CNY': 'CN',
+    'VND': 'VN', 'THB': 'TH', 'PHP': 'PH', 'TWD': 'TW', 'HKD': 'HK',
+    'SGD': 'SG', 'MYR': 'MY', 'IDR': 'ID', 'GBP': 'GB', 'CHF': 'CH',
+    'AUD': 'AU', 'CAD': 'CA', 'NZD': 'NZ', 'MOP': 'MO', 'MNT': 'MN',
+    'TRY': 'TR', 'CZK': 'CZ', 'HUF': 'HU', 'AED': 'AE',
+  };
+
   static const krw = Currency('KRW', 0, '₩', '원');
 
   static const List<Currency> all = [

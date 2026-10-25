@@ -63,6 +63,14 @@ void main() {
       expect(Currency.of('KWD').decimals, 2, reason: '목록에 없으면 2자리');
     });
 
+    test('shows the flag of the country that uses it', () {
+      expect(Currency.of('JPY').flag, '🇯🇵');
+      expect(Currency.krw.flag, '🇰🇷');
+      expect(Currency.of('EUR').flag, '🇪🇺');
+      expect(Currency.of('KWD').flag, '', reason: '모르는 통화는 국기 없이');
+      expect([for (final c in Currency.all) if (c.flag.isEmpty) c.code], isEmpty);
+    });
+
     test('formats money per currency', () {
       expect(formatMoney(1250, Currency.of('USD')), r'$12.50');
       expect(formatMoney(16126, Currency.of('JPY')), '¥16,126');

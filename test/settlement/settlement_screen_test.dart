@@ -168,7 +168,11 @@ void main() {
       await tester.pumpAndSettle();
       expect(copied, '69000');
 
-      await tester.tap(find.text('원화만'));
+      // 드롭다운을 열고 원화만 고른다 (닫힌 버튼도 모든 항목을 품고 있어서 마지막 것이 메뉴다).
+      expect(find.text('🇯🇵'), findsWidgets);
+      await tester.tap(find.text('엔 JPY'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('원화만').last);
       await tester.pumpAndSettle();
       expect(find.textContaining('≈ ¥'), findsNothing);
     });
