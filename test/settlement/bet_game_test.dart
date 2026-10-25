@@ -83,13 +83,24 @@ void main() {
       ),
     );
 
+    // 장애물은 미리 보이지 않고 부딪히기 직전에 나타난다.
+    for (final hazard in ['🪝', '🦈']) {
+      expect(find.text(hazard), findsNothing);
+    }
     await tester.tap(find.text('출발!'));
-    for (var i = 0; i < 300 && ranking == null; i++) {
+    var ticks = 0, bumped = false, warned = false;
+    for (; ticks < 300 && ranking == null; ticks++) {
       await tester.pump(const Duration(milliseconds: 100));
+      bumped |= find.text('💫').evaluate().isNotEmpty;
+      warned |= find.text('❗').evaluate().isNotEmpty;
     }
     expect(ranking, isNotNull);
     expect(ranking!.toSet(), _members.toSet());
     expect(find.text('도착!'), findsOneWidget);
+    // 장애물에 부딪혀 밀려나고, 카운트다운까지 10초 넘게 헤엄친다.
+    expect(bumped, isTrue);
+    expect(warned, isTrue);
+    expect(ticks, greaterThan(100));
   });
 
   group('roulette', () {
@@ -220,7 +231,9 @@ void main() {
     await tester.tap(find.text('파도타기'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('게임 시작'));
-    await tester.pumpAndSettle();
+    // 파도는 계속 출렁여서 화면이 멈추지 않는다.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 600));
 
     await tester.tap(find.text('출발!'));
     for (var i = 0; i < 300 && find.text('정산에 반영하기').evaluate().isEmpty; i++) {
