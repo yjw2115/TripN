@@ -160,7 +160,7 @@ void main() {
     });
   });
 
-  test('an expense involves its payer and item participants', () {
+  test('an expense involves its payer, item participants and takers', () {
     final expense = Expense(
       id: 'e1',
       title: '라멘',
@@ -176,12 +176,19 @@ void main() {
         items: const [
           ReceiptItem(
               id: 'i1', name: '라멘', amountMinor: 2000, participantIds: ['g1']),
+          ReceiptItem(
+              id: 'i2',
+              name: '교자',
+              quantity: 2,
+              amountMinor: 800,
+              takenBy: {'g3': 1}),
         ],
-        totalMinor: 2000,
+        totalMinor: 2800,
       ),
     );
     expect(expense.involves('alice'), isTrue);
     expect(expense.involves('g1'), isTrue);
+    expect(expense.involves('g3'), isTrue); // 교자를 가져갔다
     expect(expense.involves('g2'), isFalse);
   });
 }

@@ -28,6 +28,7 @@ class ReceiptItem {
     required this.amountMinor,
     this.discountMinor = 0,
     this.participantIds = const [],
+    this.takenBy = const {},
   });
 
   final String id;
@@ -47,9 +48,26 @@ class ReceiptItem {
   final int discountMinor;
 
   /// 이 품목을 함께 쓴 사람들. 비어 있으면 지출 참여자 전원으로 본다.
+  /// 각자 가져간 개수([takenBy])가 있으면 남은 개수만 이 사람들끼리 나눈다.
   final List<String> participantIds;
 
+  /// 한 번에 결제하고 각자 가져간 개수 (멤버 id → 개수). 그만큼은 그 사람 몫이다.
+  final Map<String, int> takenBy;
+
   int get netMinor => amountMinor - discountMinor;
+
+  /// 나눠 가질 수 있는 개수. 수량이 자연수가 아니면(무게 등) 한 덩어리로 본다.
+  int get units => unitsOf(quantity);
+
+  static int unitsOf(double quantity) =>
+      quantity >= 1 && quantity == quantity.roundToDouble()
+          ? quantity.toInt()
+          : 1;
+
+  int get takenCount => takenBy.values.fold(0, (sum, n) => sum + n);
+
+  /// 아무도 가져가지 않아 함께 나누는 개수.
+  int get sharedUnits => units > takenCount ? units - takenCount : 0;
 
   String get displayName => nameKo.isNotEmpty ? nameKo : name;
 
@@ -69,6 +87,7 @@ class ReceiptItem {
     int? amountMinor,
     int? discountMinor,
     List<String>? participantIds,
+    Map<String, int>? takenBy,
   }) {
     return ReceiptItem(
       id: id,
@@ -80,6 +99,7 @@ class ReceiptItem {
       amountMinor: amountMinor ?? this.amountMinor,
       discountMinor: discountMinor ?? this.discountMinor,
       participantIds: participantIds ?? this.participantIds,
+      takenBy: takenBy ?? this.takenBy,
     );
   }
 
@@ -92,6 +112,7 @@ class ReceiptItem {
         'amountMinor': amountMinor,
         'discountMinor': discountMinor,
         'participantIds': participantIds,
+        'takenBy': takenBy,
       };
 
   factory ReceiptItem.fromMap(Map<String, Object?> map) => ReceiptItem(
@@ -104,6 +125,11 @@ class ReceiptItem {
         discountMinor: (map['discountMinor'] as num?)?.toInt() ?? 0,
         participantIds:
             (map['participantIds'] as List?)?.cast<String>() ?? const [],
+        takenBy: {
+          for (final e in ((map['takenBy'] as Map?) ?? const {}).entries)
+            if (e.value is num && (e.value as num) > 0)
+              e.key as String: (e.value as num).toInt(),
+        },
       );
 }
 

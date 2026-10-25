@@ -5,7 +5,9 @@ import '../../../../core/money/currency.dart';
 import '../../../../core/money/money_format.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../trip/domain/trip.dart';
+import '../../../trip/presentation/widgets/trip_widgets.dart';
 import '../../domain/receipt.dart';
+import 'count_stepper.dart';
 
 /// 바텀시트 공통 틀: 제목 + 내용 + 하단 버튼.
 class SheetScaffold extends StatelessWidget {
@@ -41,7 +43,8 @@ class SheetScaffold extends StatelessWidget {
                 style:
                     const TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
             const SizedBox(height: 20),
-            child,
+            // 내용이 길면(동행자가 많은 품목 시트 등) 버튼은 두고 내용만 스크롤한다.
+            Flexible(child: SingleChildScrollView(child: child)),
             const SizedBox(height: 24),
             Row(
               children: [
@@ -261,6 +264,16 @@ class _ItemSheetState extends State<_ItemSheet> {
   /// 비어 있으면 함께 쓴 사람 모두.
   late final Set<String> _who = {...widget.item.participantIds};
 
+  /// 각자 가져간 개수. 나머지 개수는 [_who]끼리 나눈다.
+  late final Map<String, int> _taken = {
+    for (final e in widget.item.takenBy.entries)
+      if (widget.together.any((m) => m.id == e.key)) e.key: e.value,
+  };
+
+  int get _units => ReceiptItem.unitsOf(_parseQuantity(_quantity.text) ?? 1);
+
+  int get _takenCount => _taken.values.fold(0, (sum, n) => sum + n);
+
   static double? _parseQuantity(String text) =>
       double.tryParse(text.trim().replaceAll(',', '.'));
 
@@ -305,6 +318,10 @@ class _ItemSheetState extends State<_ItemSheet> {
                 for (final m in widget.together)
                   if (_who.contains(m.id)) m.id,
               ],
+        takenBy: {
+          for (final m in widget.together)
+            if ((_taken[m.id] ?? 0) > 0) m.id: _taken[m.id]!,
+        },
       )),
     );
   }
@@ -313,14 +330,19 @@ class _ItemSheetState extends State<_ItemSheet> {
   Widget build(BuildContext context) {
     final c = widget.currency;
     const money = _moneyKeyboard;
+    final units = _units;
+    final shared = units > _takenCount ? units - _takenCount : 0;
+    // 수량을 줄여서 고른 개수가 더 많아지면 저장하기 전에 고치게 한다.
+    final overTaken = _takenCount > units;
     return SheetScaffold(
       title: widget.isNew ? '품목 추가' : '품목 수정',
-      primaryLabel: '저장',
-      onPrimary: _save,
+      primaryLabel: overTaken ? '수량보다 많이 골랐어요' : '저장',
+      onPrimary: overTaken ? null : _save,
       secondaryLabel: widget.isNew ? null : '삭제',
       onSecondary: () =>
           Navigator.pop(context, const ItemEditResult.deleted()),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _LabeledField(
             label: '이름',
@@ -348,7 +370,7 @@ class _ItemSheetState extends State<_ItemSheet> {
                     controller: _quantity,
                     keyboardType:
                         const TextInputType.numberWithOptions(decimal: true),
-                    onChanged: (_) => _recalculate(),
+                    onChanged: (_) => setState(_recalculate),
                   ),
                 ),
               ),
@@ -398,10 +420,45 @@ class _ItemSheetState extends State<_ItemSheet> {
               ),
             ],
           ),
-          if (widget.together.length > 1) ...[
+          if (widget.together.length > 1 &&
+              (units > 1 || _taken.isNotEmpty)) ...[
             const SizedBox(height: 12),
             _LabeledField(
-              label: '같이 먹은 사람 (고르지 않으면 모두)',
+              label: '각자 몫 (고른 개수만큼 각자 내요)',
+              child: Column(
+                children: [
+                  for (final m in widget.together)
+                    SizedBox(
+                      height: 52,
+                      child: Row(
+                        children: [
+                          MemberAvatar(m, size: 32),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(m.name,
+                                style: const TextStyle(fontSize: 16)),
+                          ),
+                          CountStepper(
+                            count: _taken[m.id] ?? 0,
+                            max: (_taken[m.id] ?? 0) + shared,
+                            name: m.name,
+                            onChanged: (n) => setState(() =>
+                                n > 0 ? _taken[m.id] = n : _taken.remove(m.id)),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+          // 모두 각자 가져갔으면 함께 나눌 게 없다.
+          if (widget.together.length > 1 && (_taken.isEmpty || shared > 0)) ...[
+            const SizedBox(height: 12),
+            _LabeledField(
+              label: _taken.isEmpty
+                  ? '같이 먹은 사람 (고르지 않으면 모두)'
+                  : '나머지 $shared개를 같이 먹은 사람 (고르지 않으면 모두)',
               child: Wrap(
                 spacing: 8,
                 runSpacing: 8,

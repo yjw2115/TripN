@@ -115,6 +115,106 @@ void main() {
       expect(sharesOf(e, _ids), {'j': 1000, 'm': 1000, 's': 7000});
     });
 
+    test('what each took counts as their own, untaken items are shared', () {
+      // 돈키호테: 킷캣 5개(지민 3·민수 2) + 샴푸(아무도 안 고름 → 셋이 n빵)
+      final e = _expense(
+        payer: 'j',
+        total: 8000,
+        together: _ids,
+        items: [
+          const ReceiptItem(
+              id: 'kitkat',
+              name: 'キットカット',
+              quantity: 5,
+              unitPriceMinor: 1000,
+              amountMinor: 5000,
+              takenBy: {'j': 3, 'm': 2}),
+          _item('shampoo', 3000),
+        ],
+      );
+      expect(sharesOf(e, _ids), {'j': 4000, 'm': 3000, 's': 1000});
+    });
+
+    test('the units nobody took are shared by whoever had the item', () {
+      final e = _expense(
+        payer: 'j',
+        total: 9000,
+        together: _ids,
+        items: [
+          // 과자 4개 중 지민 1개, 남은 3개는 셋이
+          const ReceiptItem(
+              id: 'snack',
+              name: '과자',
+              quantity: 4,
+              amountMinor: 4000,
+              takenBy: {'j': 1}),
+          // 맥주 5개 중 지민 1개, 남은 4개는 민수·서연이
+          const ReceiptItem(
+              id: 'beer',
+              name: '맥주',
+              quantity: 5,
+              amountMinor: 5000,
+              participantIds: ['m', 's'],
+              takenBy: {'j': 1}),
+        ],
+      );
+      expect(sharesOf(e, _ids), {'j': 3000, 'm': 3000, 's': 3000});
+    });
+
+    test('a receipt discount follows what each took', () {
+      final e = _expense(
+        payer: 'm',
+        total: 9000, // 품목 10,000 − 전체 할인 1,000
+        together: ['j', 'm'],
+        items: [
+          const ReceiptItem(
+              id: 'kitkat',
+              name: '킷캣',
+              quantity: 5,
+              amountMinor: 5000,
+              takenBy: {'j': 5}),
+          const ReceiptItem(
+              id: 'lotion',
+              name: '로션',
+              amountMinor: 5000,
+              takenBy: {'m': 1}),
+        ],
+      );
+      expect(sharesOf(e, _ids), {'j': 4500, 'm': 4500});
+    });
+
+    test('shared items are split once, so leftover yen do not pile up', () {
+      // 1,990 + 1,960 + 698 + 632 = 5,280엔을 셋이 → 1,760엔씩 (품목마다 나누면 지민이 몇 엔 더 낸다)
+      final e = _expense(
+        payer: 'j',
+        total: 5280,
+        currency: Currency.of('JPY'),
+        rate: const FixedRate(krwPerUnit: 1, source: RateSource.manual),
+        together: _ids,
+        items: [
+          _item('kitkat', 1990),
+          _item('choco', 1960),
+          _item('foot', 698),
+          _item('jaga', 632),
+        ],
+      );
+      expect(sharesOf(e, _ids), {'j': 1760, 'm': 1760, 's': 1760});
+    });
+
+    test('an item sold by weight is taken as one piece', () {
+      final item = const ReceiptItem(
+          id: 'meat',
+          name: '고기',
+          quantity: 0.35,
+          amountMinor: 7000,
+          takenBy: {'s': 1});
+      expect(item.units, 1);
+      expect(item.sharedUnits, 0);
+      final e = _expense(
+          payer: 'j', total: 7000, together: _ids, items: [item]);
+      expect(sharesOf(e, _ids), {'j': 0, 'm': 0, 's': 7000});
+    });
+
     test('an expense without a rate yet is left out', () {
       final e = _expense(
           payer: 'j', total: 1800, currency: Currency.of('JPY'));

@@ -38,6 +38,14 @@ Widget _wrap(Receipt receipt,
       ),
     );
 
+/// 스크롤해서 보이게 한 뒤 누른다 (품목 시트는 테스트 화면보다 길다).
+Future<void> _tapVisible(WidgetTester tester, Finder finder) async {
+  await tester.ensureVisible(finder);
+  await tester.pump();
+  await tester.tap(finder);
+  await tester.pump();
+}
+
 Receipt _thaiReceipt({required int totalMinor}) => Receipt(
       merchantName: 'ต๋อง Northern Thai Cuisine',
       category: ExpenseCategory.food,
@@ -213,15 +221,92 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('2명 함께'), findsOneWidget);
 
-    await tester.tap(find.text('찹쌀밥'));
+    await _tapVisible(tester, find.text('찹쌀밥'));
     await tester.pumpAndSettle();
     expect(find.text('서연'), findsNothing);
-    await tester.tap(find.widgetWithText(FilterChip, '민수'));
-    await tester.pump();
+    await _tapVisible(tester, find.widgetWithText(FilterChip, '민수'));
     await tester.tap(find.text('저장'));
     await tester.pumpAndSettle();
 
     expect(find.text('민수'), findsOneWidget); // 품목 줄에 같이 먹은 사람
+  });
+
+  testWidgets('each picks what they bought, the rest is shared',
+      (tester) async {
+    await tester.pumpWidget(_wrap(_thaiReceipt(totalMinor: 16800),
+        members: const [_me, _minsu]));
+    await tester.pump();
+
+    await tester.tap(find.text('각자 몫 고르기'));
+    await tester.pumpAndSettle();
+    // 처음엔 나(지민)부터, 아무도 안 골랐으니 반씩.
+    expect(find.text('내 몫을 골라 주세요. 아무도 고르지 않은 건 함께 나눠요.'),
+        findsOneWidget);
+    expect(find.text('฿84.00'), findsNWidgets(2));
+
+    // 지민: 찹쌀밥 4개
+    for (var i = 0; i < 4; i++) {
+      await tester.tap(find.text('찹쌀밥'));
+      await tester.pump();
+    }
+    expect(find.text('지민 4 · 나머지 2개 함께'), findsOneWidget);
+
+    // 민수: 찹쌀밥 남은 2개 + 생수 3개 → 더는 못 담는다.
+    await tester.tap(find.text('민수'));
+    await tester.pump();
+    expect(find.text('민수님 몫을 골라 주세요. 아무도 고르지 않은 건 함께 나눠요.'),
+        findsOneWidget);
+    for (var i = 0; i < 3; i++) {
+      await tester.tap(find.text('찹쌀밥'));
+      await tester.pump();
+    }
+    expect(find.text('지민 4 · 민수 2'), findsOneWidget);
+    for (var i = 0; i < 3; i++) {
+      await tester.tap(find.byTooltip(i == 0 ? '민수 하나 담기' : '민수 하나 더').last);
+      await tester.pump();
+    }
+    expect(find.text('민수 3'), findsOneWidget);
+    expect(find.text('모든 품목을 각자 골랐어요'), findsOneWidget);
+    // 찹쌀밥 23바트 × 4 = 92, 23 × 2 + 생수 30 = 76
+    expect(find.text('฿92.00'), findsOneWidget);
+    expect(find.text('฿76.00'), findsOneWidget);
+
+    await tester.tap(find.text('완료'));
+    await tester.pumpAndSettle();
+    expect(find.text('지민 4 · 민수 2'), findsOneWidget);
+    expect(find.text('민수 3'), findsOneWidget);
+  });
+
+  testWidgets('the item sheet splits by count up to the quantity',
+      (tester) async {
+    await tester.pumpWidget(_wrap(_thaiReceipt(totalMinor: 16800),
+        members: const [_me, _minsu]));
+    await tester.pump();
+
+    await _tapVisible(tester, find.text('생수'));
+    await tester.pumpAndSettle();
+    expect(find.text('같이 먹은 사람 (고르지 않으면 모두)'), findsOneWidget);
+
+    await _tapVisible(tester, find.byTooltip('지민 하나 담기'));
+    expect(find.text('나머지 2개를 같이 먹은 사람 (고르지 않으면 모두)'), findsOneWidget);
+    await _tapVisible(tester, find.byTooltip('민수 하나 담기'));
+    await _tapVisible(tester, find.byTooltip('민수 하나 더'));
+    // 3개를 다 골랐으니 함께 나눌 사람은 묻지 않는다.
+    expect(find.textContaining('같이 먹은 사람'), findsNothing);
+    expect(
+        tester
+            .widget<IconButton>(find.widgetWithIcon(IconButton, Icons.add_rounded).first)
+            .onPressed,
+        isNull);
+
+    // 수량을 줄이면 고친 다음에 저장할 수 있다.
+    await tester.enterText(find.widgetWithText(TextField, '3'), '2');
+    await tester.pump();
+    expect(find.text('수량보다 많이 골랐어요'), findsOneWidget);
+    await _tapVisible(tester, find.byTooltip('민수 하나 빼기'));
+    await tester.tap(find.text('저장'));
+    await tester.pumpAndSettle();
+    expect(find.text('지민 1 · 민수 1'), findsOneWidget);
   });
 
   testWidgets('can replace the total with the item sum', (tester) async {

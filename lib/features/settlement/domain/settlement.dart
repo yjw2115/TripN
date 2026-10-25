@@ -3,6 +3,7 @@ import 'package:collection/collection.dart';
 import '../../../core/money/currency.dart';
 import '../../../core/money/money_format.dart';
 import '../../expense/domain/expense.dart';
+import '../../receipt/domain/receipt.dart';
 import '../../trip/domain/trip.dart';
 import 'bet.dart';
 
@@ -57,8 +58,8 @@ Map<String, int> allocate(
 
 /// 한 지출에서 각자 낼 몫 (원). 환율을 아직 못 정한 지출은 null.
 ///
-/// 품목이 있으면 품목마다 그 품목을 함께 쓴 사람끼리 나누고, 그 비율대로 총액(세금·봉사료·
-/// 팁·할인 포함)을 나눈다. 품목이 없으면 함께 쓴 사람끼리 똑같이 나눈다.
+/// 품목이 있으면 [itemWeights]의 비율대로 총액(세금·봉사료·팁·할인 포함)을 나눈다.
+/// 품목이 없으면 함께 쓴 사람끼리 똑같이 나눈다.
 Map<String, int>? sharesOf(Expense expense, List<String> memberIds) {
   final total = expense.totalKrw;
   if (total == null) return null;
@@ -67,21 +68,53 @@ Map<String, int>? sharesOf(Expense expense, List<String> memberIds) {
   if (together.isEmpty) return {expense.payerId: total};
   final priority = [expense.payerId];
 
-  final weights = {for (final id in together) id: 0};
   final items = expense.receipt?.items ?? const [];
-  if (items.isEmpty) {
-    weights.updateAll((_, _) => 1);
-  } else {
-    for (final item in items) {
-      final who =
-          item.participantIds.isEmpty ? together : item.participantIds;
-      final split = allocate(item.netMinor, {for (final id in who) id: 1},
-          priority: priority);
-      split.forEach((id, minor) => weights[id] = (weights[id] ?? 0) + minor);
-    }
-  }
+  final weights = items.isEmpty
+      ? {for (final id in together) id: 1}
+      : itemWeights(items, together, priority: priority);
   return allocate(total, weights, priority: priority);
 }
+
+/// 품목마다 누가 얼마어치를 썼는지 (최소 단위). [together]는 이 지출을 함께 쓴 사람이다.
+///
+/// 각자 가져간 개수([ReceiptItem.takenBy])만큼은 그 사람 몫이고, 남은 개수는 그 품목을 함께 쓴
+/// 사람끼리(고르지 않았으면 [together] 모두) 똑같이 나눈다.
+///
+/// 함께 나누는 금액은 나눌 사람이 같은 것끼리 모아서 한 번에 나눈다. 품목마다 나누면
+/// 1원(1엔) 자투리가 품목 수만큼 한 사람에게 쌓인다.
+Map<String, int> itemWeights(
+  List<ReceiptItem> items,
+  List<String> together, {
+  List<String> priority = const [],
+}) {
+  final weights = {for (final id in together) id: 0};
+  void add(Map<String, int> split) =>
+      split.forEach((id, minor) => weights[id] = (weights[id] ?? 0) + minor);
+
+  final pools = <String, ({List<String> who, int minor})>{};
+  for (final item in items) {
+    final who = item.participantIds.isEmpty ? together : item.participantIds;
+    var shared = item.netMinor;
+    if (item.takenBy.isNotEmpty) {
+      final split = allocate(
+          item.netMinor,
+          {...item.takenBy, if (item.sharedUnits > 0) _pool: item.sharedUnits},
+          priority: priority);
+      shared = split.remove(_pool) ?? 0;
+      add(split);
+    }
+    final key = ([...who]..sort()).join(',');
+    pools[key] = (who: who, minor: (pools[key]?.minor ?? 0) + shared);
+  }
+  for (final pool in pools.values) {
+    add(allocate(pool.minor, {for (final id in pool.who) id: 1},
+        priority: priority));
+  }
+  return weights;
+}
+
+/// [itemWeights]에서 함께 나눌 몫을 잠깐 담아 두는 자리. 멤버 id는 비어 있지 않다.
+const _pool = '';
 
 class MemberBalance {
   const MemberBalance({

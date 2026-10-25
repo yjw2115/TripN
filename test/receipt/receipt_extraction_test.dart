@@ -301,4 +301,19 @@ void main() {
     final restored = Receipt.fromMap(original.toMap());
     expect(restored.toMap(), original.toMap());
   });
+
+  test('what each took survives the round trip', () {
+    const item = ReceiptItem(
+        id: 'i1',
+        name: 'キットカット',
+        quantity: 5,
+        amountMinor: 1000,
+        takenBy: {'j': 3, 'm': 2});
+    final restored = ReceiptItem.fromMap(item.toMap());
+    expect(restored.takenBy, {'j': 3, 'm': 2});
+    expect(restored.sharedUnits, 0);
+    // 예전 품목에는 없다.
+    expect(ReceiptItem.fromMap({'id': 'old', 'amountMinor': 100}).takenBy,
+        isEmpty);
+  });
 }

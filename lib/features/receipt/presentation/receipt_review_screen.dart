@@ -16,6 +16,7 @@ import '../../trip/presentation/widgets/manual_rate_sheet.dart';
 import '../../trip/presentation/widgets/trip_widgets.dart';
 import '../domain/receipt.dart';
 import '../domain/receipt_validator.dart';
+import 'item_split_screen.dart';
 import 'widgets/category_badge.dart';
 import 'widgets/edit_sheets.dart';
 
@@ -295,8 +296,29 @@ class _ReceiptReviewScreenState extends ConsumerState<ReceiptReviewScreen> {
           initial: {for (final m in _togetherMembers(members)) m.id}),
     );
     if (picked == null) return;
-    setState(() => _together =
-        picked.length == members.length ? null : picked);
+    setState(() {
+      _together = picked.length == members.length ? null : picked;
+      // 함께 쓴 사람에서 빠진 사람이 가져간 개수는 다시 함께 나눈다.
+      _receipt = _receipt.copyWith(items: [
+        for (final i in _receipt.items)
+          i.copyWith(takenBy: {
+            for (final e in i.takenBy.entries)
+              if (picked.contains(e.key)) e.key: e.value,
+          }),
+      ]);
+    });
+  }
+
+  void _openSplit(List<Member> members, Member? payer) {
+    Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => ItemSplitScreen(
+        receipt: _receipt,
+        members: _togetherMembers(members),
+        payerId: payer?.id,
+        myId: ref.read(myMemberProvider).value?.id,
+        onChanged: (items) => _update(_receipt.copyWith(items: items)),
+      ),
+    ));
   }
 
   Future<void> _editItem(ReceiptItem item, {bool isNew = false}) async {
@@ -380,6 +402,7 @@ class _ReceiptReviewScreenState extends ConsumerState<ReceiptReviewScreen> {
     final args = widget.args;
     final members = ref.watch(membersProvider).value ?? const <Member>[];
     final payer = _payer(members, ref.watch(myMemberProvider).value);
+    final names = {for (final m in members) m.id: m.name};
     return Scaffold(
       appBar: AppBar(
         title: Text(args.expenseId != null
@@ -449,6 +472,9 @@ class _ReceiptReviewScreenState extends ConsumerState<ReceiptReviewScreen> {
               label: const Text('추가'),
             ),
             children: [
+              if (_receipt.items.isNotEmpty &&
+                  _togetherMembers(members).length > 1)
+                _SplitEntry(onTap: () => _openSplit(members, payer)),
               if (_receipt.items.isEmpty)
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: 24),
@@ -463,10 +489,7 @@ class _ReceiptReviewScreenState extends ConsumerState<ReceiptReviewScreen> {
                   money: _money,
                   currency: _currency,
                   hasMismatch: check.mismatchedItemIds.contains(item.id),
-                  who: [
-                    for (final m in members)
-                      if (item.participantIds.contains(m.id)) m.name,
-                  ].join('·'),
+                  who: splitSummary(item, names),
                   onTap: () => _editItem(item),
                 ),
             ],
@@ -995,7 +1018,7 @@ class _ItemRow extends StatelessWidget {
   final Currency currency;
   final bool hasMismatch;
 
-  /// 같이 먹은 사람 이름. 모두면 빈 문자열.
+  /// 누가 가져갔고 누가 같이 먹었는지 ([splitSummary]). 모두 함께면 빈 문자열.
   final String who;
   final VoidCallback onTap;
 
@@ -1079,6 +1102,55 @@ class _ItemRow extends StatelessWidget {
               ],
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 품목 목록 위에서 각자 몫 고르기로 들어간다.
+class _SplitEntry extends StatelessWidget {
+  const _SplitEntry({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 4, bottom: 8),
+      child: Material(
+        color: AppColors.primaryLight,
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(14),
+          child: const Padding(
+            padding: EdgeInsets.fromLTRB(14, 12, 10, 12),
+            child: Row(
+              children: [
+                Icon(Icons.shopping_bag_outlined,
+                    size: 22, color: AppColors.primaryDeep),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('각자 몫 고르기',
+                          style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.primaryDeep)),
+                      Text('고른 만큼 각자 내고, 안 고른 건 함께 나눠요',
+                          style: TextStyle(
+                              fontSize: 13, color: AppColors.textSub)),
+                    ],
+                  ),
+                ),
+                Icon(Icons.chevron_right_rounded,
+                    size: 20, color: AppColors.primaryDeep),
+              ],
+            ),
+          ),
         ),
       ),
     );

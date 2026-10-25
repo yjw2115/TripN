@@ -44,11 +44,13 @@ class Expense {
 
   int? get totalKrw => rate?.toKrw(totalMinor, currency);
 
-  /// 이 멤버가 결제자이거나 품목 참여자로 콕 집혀 있으면 true. 그런 멤버는 지울 수 없다.
+  /// 이 멤버가 결제자이거나 품목 참여자로 콕 집혀 있거나 품목을 가져갔으면 true. 그런 멤버는 지울 수 없다.
   /// 함께 쓴 사람([participantIds])에만 있으면 지울 때 거기서 빼면 된다.
   bool involves(String memberId) =>
       payerId == memberId ||
-      (receipt?.items.any((i) => i.participantIds.contains(memberId)) ??
+      (receipt?.items.any((i) =>
+              i.participantIds.contains(memberId) ||
+              i.takenBy.containsKey(memberId)) ??
           false);
 
   factory Expense.fromMap(String id, Map<String, Object?> map) {
