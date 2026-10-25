@@ -270,15 +270,30 @@ class _ExpenseTile extends ConsumerWidget {
     final payer = members.length > 1
         ? members.firstWhereOrNull((m) => m.id == expense.payerId)
         : null;
+    // 미리 정산한 지출은 회색으로 두고 금액에 줄을 긋는다.
+    final settled = expense.isSettled;
+    final amountStyle = settled
+        ? const TextStyle(
+            color: AppColors.textHint,
+            decoration: TextDecoration.lineThrough,
+            decorationColor: AppColors.textHint)
+        : const TextStyle();
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-      leading: CategoryBadge(expense.category, size: 40),
+      leading: Opacity(
+        opacity: settled ? 0.4 : 1,
+        child: CategoryBadge(expense.category, size: 40),
+      ),
       title: Text(expense.title,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+          style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: settled ? AppColors.textHint : null)),
       subtitle: Text(
         [
+          if (settled) '정산 완료',
           DateFormat('HH:mm').format(expense.paidAt),
           if (expense.source == 'menu') '메뉴판 주문',
           if (itemCount > 0) '품목 $itemCount개',
@@ -291,14 +306,14 @@ class _ExpenseTile extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           Text(formatMoney(expense.totalMinor, expense.currency),
-              style:
-                  const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+              style: amountStyle.copyWith(
+                  fontSize: 16, fontWeight: FontWeight.w600)),
           if (expense.currency != Currency.krw)
             Text(
               expense.totalKrw == null
                   ? '환율 미정'
                   : formatMoney(expense.totalKrw!, Currency.krw),
-              style: TextStyle(
+              style: amountStyle.copyWith(
                   fontSize: 13,
                   color: expense.totalKrw == null
                       ? AppColors.warning
@@ -314,7 +329,8 @@ class _ExpenseTile extends ConsumerWidget {
                   expenseId: expense.id,
                   payerId: expense.payerId,
                   participantIds: expense.participantIds,
-                  rate: expense.rate)),
+                  rate: expense.rate,
+                  settled: settled)),
       onLongPress: () => _delete(context, ref),
     );
   }

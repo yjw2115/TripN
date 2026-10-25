@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../../app_providers.dart';
@@ -10,6 +11,9 @@ import '../../../core/money/currency.dart';
 import '../../../core/money/exchange_rate.dart';
 import '../../../core/money/money_format.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../expense/domain/expense.dart';
+import '../../receipt/presentation/widgets/category_badge.dart';
+import '../../receipt/presentation/widgets/edit_sheets.dart';
 import '../../trip/domain/trip.dart';
 import '../../trip/presentation/widgets/account_sheet.dart';
 import '../../trip/presentation/widgets/trip_widgets.dart';
@@ -21,6 +25,7 @@ String _won(int krw) => formatMoney(krw, Currency.krw);
 /// 지금까지의 지출로 누가 누구에게 얼마 보낼지 보여준다. 여행 중간에도 볼 수 있다.
 /// 외화로 쓴 여행이면 현지 화폐로 얼마인지도 함께 보여준다 (복사·메시지는 원화).
 /// 미니게임으로 정한 내기가 있으면 반영하고, 언제든 원래 정산으로 되돌릴 수 있다.
+/// 일부 지출만 골라 미리 정산하고 정산 완료로 표시할 수 있다. 정산 완료한 지출은 다음 정산에서 빠진다.
 class SettlementScreen extends ConsumerStatefulWidget {
   const SettlementScreen({super.key});
 
@@ -31,6 +36,9 @@ class SettlementScreen extends ConsumerStatefulWidget {
 class _SettlementScreenState extends ConsumerState<SettlementScreen> {
   /// 함께 보여줄 현지 화폐. null이면 가장 많이 쓴 외화, 'KRW'면 원화만.
   String? _localCode;
+
+  /// 이번에 정산할 지출. null이면 아직 정산 전인 지출 모두.
+  Set<String>? _only;
 
   @override
   Widget build(BuildContext context) {
@@ -43,8 +51,14 @@ class _SettlementScreenState extends ConsumerState<SettlementScreen> {
         body: const Center(child: CircularProgressIndicator()),
       );
     }
-    final result = settle(expenses, members, bet: trip.settlementBet);
-    final options = localCurrenciesOf(expenses);
+    final open = [for (final e in expenses) if (!e.isSettled) e];
+    final settled = [for (final e in expenses) if (e.isSettled) e];
+    // 고른 뒤 지워졌거나 다른 사람이 정산한 지출은 뺀다.
+    final only = _only?.intersection({for (final e in open) e.id});
+    final result =
+        settle(expenses, members, bet: trip.settlementBet, only: only);
+    final partial = result.leftOutCount > 0;
+    final options = localCurrenciesOf(result.expenses);
     final local = _localCode == Currency.krw.code
         ? null
         : options.firstWhereOrNull((o) => o.currency.code == _localCode) ??
@@ -58,10 +72,26 @@ class _SettlementScreenState extends ConsumerState<SettlementScreen> {
         padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
         children: [
           SectionCard(children: [
-            const SizedBox(height: 8),
-            const Text('총 지출',
-                style: TextStyle(fontSize: 14, color: AppColors.textSub)),
             const SizedBox(height: 4),
+            Row(
+              children: [
+                Text(partial ? '고른 지출' : '총 지출',
+                    style: const TextStyle(
+                        fontSize: 14, color: AppColors.textSub)),
+                const Spacer(),
+                if (open.isNotEmpty)
+                  TextButton(
+                    onPressed: () => _pickExpenses(
+                        open, {for (final e in result.expenses) e.id}),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      minimumSize: const Size(0, 32),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    child: const Text('지출 고르기'),
+                  ),
+              ],
+            ),
             Text(_won(result.totalKrw),
                 style: const TextStyle(
                     fontSize: 28,
@@ -73,7 +103,14 @@ class _SettlementScreenState extends ConsumerState<SettlementScreen> {
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
                       color: AppColors.textSub)),
-            Text('${members.length}명 · 지출 ${expenses.length - result.unratedCount}건',
+            Text(
+                open.isEmpty && settled.isNotEmpty
+                    ? '모든 지출을 정산했어요'
+                    : [
+                        '${members.length}명',
+                        '지출 ${result.expenses.length}건',
+                        if (partial) '고르지 않은 ${result.leftOutCount}건은 빠져 있어요',
+                      ].join(' · '),
                 style: const TextStyle(fontSize: 14, color: AppColors.textHint)),
             if (result.unratedCount > 0)
               Padding(
@@ -83,6 +120,13 @@ class _SettlementScreenState extends ConsumerState<SettlementScreen> {
                     style: const TextStyle(
                         fontSize: 13, color: AppColors.warning)),
               ),
+            if (settled.isNotEmpty) ...[
+              const Divider(height: 24, color: AppColors.border),
+              _SettledLine(
+                count: settled.length,
+                onTap: () => _showSettled(trip.id, settled),
+              ),
+            ],
             const SizedBox(height: 8),
           ]),
           if (options.isNotEmpty) ...[
@@ -164,26 +208,111 @@ class _SettlementScreenState extends ConsumerState<SettlementScreen> {
       bottomNavigationBar: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-          child: Builder(
-            builder: (context) => FilledButton.icon(
-              onPressed: result.totalKrw == 0
-                  ? null
-                  : () {
-                      final box = context.findRenderObject() as RenderBox?;
-                      SharePlus.instance.share(ShareParams(
-                        text: settlementMessage(trip.name, result),
-                        sharePositionOrigin: box == null
-                            ? null
-                            : box.localToGlobal(Offset.zero) & box.size,
-                      ));
-                    },
-              icon: const Icon(Icons.ios_share_rounded, size: 20),
-              label: const Text('정산 요청 보내기'),
-            ),
+          child: Row(
+            children: [
+              Expanded(
+                child: FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.surface,
+                    foregroundColor: AppColors.textSub,
+                  ),
+                  onPressed: result.expenses.isEmpty
+                      ? null
+                      : () => _finish(trip, result),
+                  child: const Text('정산 완료'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                flex: 2,
+                child: Builder(
+                  builder: (context) => FilledButton.icon(
+                    onPressed: result.totalKrw == 0
+                        ? null
+                        : () {
+                            final box =
+                                context.findRenderObject() as RenderBox?;
+                            SharePlus.instance.share(ShareParams(
+                              text: settlementMessage(trip.name, result),
+                              sharePositionOrigin: box == null
+                                  ? null
+                                  : box.localToGlobal(Offset.zero) & box.size,
+                            ));
+                          },
+                    icon: const Icon(Icons.ios_share_rounded, size: 20),
+                    label: const Text('정산 요청 보내기'),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
     );
+  }
+
+  /// 이번에 정산할 지출을 고른다. 정산 전인 지출을 모두 고르면 "모두"로 돌아간다.
+  Future<void> _pickExpenses(List<Expense> open, Set<String> current) async {
+    final picked = await showAppSheet<Set<String>>(
+      context,
+      (context) => _ExpensePickerSheet(expenses: open, initial: current),
+    );
+    if (picked == null) return;
+    final rated = {for (final e in open) if (e.totalKrw != null) e.id};
+    setState(() => _only = picked.containsAll(rated) ? null : picked);
+  }
+
+  /// 이번 정산에 넣은 지출을 정산 완료로 표시하고 홈으로 돌아간다.
+  /// 반영한 내기는 이번 정산에 썼으니 지운다 (남은 정산에 또 들어가지 않게).
+  Future<void> _finish(Trip trip, Settlement result) async {
+    final count = result.expenses.length;
+    final confirmed = await confirmDialog(
+      context,
+      title: '지출 $count건을 정산 완료로 할까요?',
+      body: [
+        '보낼 돈을 다 주고받았으면 눌러 주세요. 정산한 지출은 회색으로 바뀌고 다음 정산에서 빠져요.',
+        if (result.bet != null) '게임 결과도 이번 정산에 넣고 지워요.',
+      ].join(' '),
+      confirmLabel: '정산 완료',
+    );
+    if (!confirmed || !mounted) return;
+    reportWriteErrors(
+        context,
+        Future.wait([
+          ref.read(expenseRepositoryProvider).setSettled(
+              trip.id, [for (final e in result.expenses) e.id], DateTime.now()),
+          if (result.bet != null)
+            ref.read(tripRepositoryProvider).setSettlementBet(trip.id, null),
+        ]));
+    setState(() => _only = null);
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text('지출 $count건을 정산했어요')));
+    Navigator.of(context).maybePop();
+  }
+
+  void _showSettled(String tripId, List<Expense> settled) {
+    showAppSheet<void>(
+      context,
+      (context) => _SettledSheet(
+        expenses: settled,
+        onUndo: (batch) => _undoSettled(tripId, batch),
+      ),
+    );
+  }
+
+  /// 한 번에 정산한 지출을 다시 정산할 지출로 돌린다.
+  Future<void> _undoSettled(String tripId, List<Expense> batch) async {
+    final confirmed = await confirmDialog(
+      context,
+      title: '이 정산을 되돌릴까요?',
+      body: '지출 ${batch.length}건이 다시 정산할 지출로 돌아가요. 동행자 모두의 정산 화면이 함께 바뀌어요.',
+      confirmLabel: '되돌리기',
+    );
+    if (!confirmed || !mounted) return;
+    reportWriteErrors(
+        context,
+        ref.read(expenseRepositoryProvider)
+            .setSettled(tripId, [for (final e in batch) e.id], null));
   }
 
   Future<void> _playBet(BuildContext context) async {
@@ -383,6 +512,8 @@ class _BetCard extends StatelessWidget {
                             '내기에 건 지출이 지워져서 원래 정산으로 보여요',
                           BetSkip.expenseUnrated =>
                             '내기에 건 지출의 환율을 아직 못 정해서 원래 정산으로 보여요',
+                          BetSkip.expenseLeftOut =>
+                            '내기에 건 지출이 이번 정산에 없어서 원래 정산으로 보여요',
                         },
                         style: const TextStyle(
                             fontSize: 14, color: AppColors.warning),
@@ -409,6 +540,194 @@ class _BetCard extends StatelessWidget {
               ),
             ],
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 미리 정산한 지출이 있다고 알리고, 눌러서 보거나 되돌린다.
+class _SettledLine extends StatelessWidget {
+  const _SettledLine({required this.count, required this.onTap});
+
+  final int count;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          children: [
+            const Icon(Icons.check_circle_outline_rounded,
+                size: 18, color: AppColors.textHint),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text('미리 정산한 지출 $count건은 빠져 있어요',
+                  style:
+                      const TextStyle(fontSize: 14, color: AppColors.textSub)),
+            ),
+            const Text('보기',
+                style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.primaryDeep)),
+            const Icon(Icons.chevron_right_rounded,
+                size: 20, color: AppColors.primaryDeep),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 이번에 정산할 지출을 고른다. 환율을 못 정한 지출은 고를 수 없고, 한 건 이상 골라야 한다.
+class _ExpensePickerSheet extends StatefulWidget {
+  const _ExpensePickerSheet({required this.expenses, required this.initial});
+
+  /// 아직 정산 전인 지출.
+  final List<Expense> expenses;
+  final Set<String> initial;
+
+  @override
+  State<_ExpensePickerSheet> createState() => _ExpensePickerSheetState();
+}
+
+class _ExpensePickerSheetState extends State<_ExpensePickerSheet> {
+  late final Set<String> _picked = {...widget.initial};
+
+  @override
+  Widget build(BuildContext context) {
+    final rated = [
+      for (final e in widget.expenses)
+        if (e.totalKrw != null) e,
+    ];
+    final all = rated.every((e) => _picked.contains(e.id));
+    final total = rated
+        .where((e) => _picked.contains(e.id))
+        .fold(0, (sum, e) => sum + e.totalKrw!);
+    return SheetScaffold(
+      title: '어떤 지출을 정산할까요?',
+      primaryLabel: _picked.isEmpty
+          ? '한 건 이상 골라 주세요'
+          : '${_picked.length}건 · ${_won(total)} 정산하기',
+      onPrimary: _picked.isEmpty
+          ? null
+          : () => Navigator.pop(context, {..._picked}),
+      child: Column(
+        children: [
+          CheckboxListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('모두',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+            value: all,
+            onChanged: (_) => setState(() => all
+                ? _picked.clear()
+                : _picked.addAll(rated.map((e) => e.id))),
+          ),
+          for (final e in widget.expenses)
+            CheckboxListTile(
+              contentPadding: EdgeInsets.zero,
+              secondary: CategoryBadge(e.category, size: 36),
+              title: Text(e.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 15)),
+              subtitle: Text(
+                  [
+                    DateFormat('M월 d일', 'ko').format(e.paidAt),
+                    e.totalKrw == null ? '환율을 정하면 고를 수 있어요' : _won(e.totalKrw!),
+                  ].join(' · '),
+                  style:
+                      const TextStyle(fontSize: 13, color: AppColors.textHint)),
+              value: _picked.contains(e.id),
+              onChanged: e.totalKrw == null
+                  ? null
+                  : (on) => setState(() =>
+                      on == true ? _picked.add(e.id) : _picked.remove(e.id)),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 미리 정산한 지출을 정산한 때별로 묶어 보여주고, 묶음째 되돌릴 수 있다.
+class _SettledSheet extends StatelessWidget {
+  const _SettledSheet({required this.expenses, required this.onUndo});
+
+  final List<Expense> expenses;
+  final ValueChanged<List<Expense>> onUndo;
+
+  @override
+  Widget build(BuildContext context) {
+    final batches = groupBy(expenses, (Expense e) => e.settledAt!)
+        .entries
+        .sorted((a, b) => b.key.compareTo(a.key));
+    return SheetScaffold(
+      title: '미리 정산한 지출',
+      primaryLabel: '닫기',
+      onPrimary: () => Navigator.pop(context),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (final batch in batches) ...[
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                          '${DateFormat('M월 d일 HH:mm', 'ko').format(batch.key)} 정산',
+                          style: const TextStyle(
+                              fontSize: 15, fontWeight: FontWeight.w700)),
+                      Text(
+                          '${batch.value.length}건 · '
+                          '${_won(batch.value.fold(0, (sum, e) => sum + (e.totalKrw ?? 0)))}',
+                          style: const TextStyle(
+                              fontSize: 13, color: AppColors.textHint)),
+                    ],
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    onUndo(batch.value);
+                  },
+                  icon: const Icon(Icons.undo_rounded, size: 18),
+                  label: const Text('되돌리기'),
+                ),
+              ],
+            ),
+            for (final e in batch.value)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Row(
+                  children: [
+                    CategoryBadge(e.category, size: 32),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(e.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              fontSize: 15, color: AppColors.textSub)),
+                    ),
+                    Text(
+                        e.totalKrw == null
+                            ? formatMoney(e.totalMinor, e.currency)
+                            : _won(e.totalKrw!),
+                        style: const TextStyle(
+                            fontSize: 14, color: AppColors.textSub)),
+                  ],
+                ),
+              ),
+            const SizedBox(height: 12),
+          ],
         ],
       ),
     );

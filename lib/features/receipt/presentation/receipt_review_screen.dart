@@ -32,6 +32,7 @@ class ReviewArgs {
     this.participantIds = const [],
     this.rate,
     this.source = 'receipt',
+    this.settled = false,
   });
 
   final Receipt receipt;
@@ -53,6 +54,9 @@ class ReviewArgs {
 
   /// 'menu'면 메뉴판에서 고른 주문이다 (영수증 없이 정산).
   final String source;
+
+  /// 미리 정산을 마친 지출이다. 고쳐도 정산에는 다시 들어가지 않는다.
+  final bool settled;
 }
 
 /// 인식 결과를 확인하고 고친 뒤 저장한다. 자동 저장하지 않는다.
@@ -442,6 +446,13 @@ class _ReceiptReviewScreenState extends ConsumerState<ReceiptReviewScreen> {
             krwLine: _krwLine(),
           ),
           const SizedBox(height: 12),
+          if (args.settled) ...[
+            const _Banner.info(
+              title: '정산을 마친 지출이에요',
+              body: '고쳐도 정산에 다시 들어가지 않아요. 다시 정산하려면 정산 화면에서 되돌려 주세요.',
+            ),
+            const SizedBox(height: 12),
+          ],
           if (args.receiptCount > 1) ...[
             _Banner.warning(
               title: '영수증이 ${args.receiptCount}장 찍혔어요',

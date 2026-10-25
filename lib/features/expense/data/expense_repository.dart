@@ -8,7 +8,8 @@ import '../domain/expense.dart';
 ///   trips/{tripId}/expenses/{id}      title, category, currency, totalMinor,
 ///                                     paidAt, payerId(멤버 id), participantIds(함께 쓴 멤버 id),
 ///                                     createdBy, receipt{...},
-///                                     krwRate, rateSource, rateDate (지출할 때 고정한 환율)
+///                                     krwRate, rateSource, rateDate (지출할 때 고정한 환율),
+///                                     settledAt (미리 정산을 마친 때, 없으면 아직 정산 전)
 class ExpenseRepository {
   ExpenseRepository(this._db);
 
@@ -82,6 +83,18 @@ class ExpenseRepository {
     for (final id in expenseIds) {
       batch.update(_expenses(tripId).doc(id), {
         'participantIds': FieldValue.arrayRemove([memberId]),
+      });
+    }
+    return batch.commit();
+  }
+
+  /// 미리 정산을 마친 지출에 [at]을 남긴다. [at]이 null이면 지워서 다시 정산할 지출로 돌린다.
+  Future<void> setSettled(
+      String tripId, Iterable<String> expenseIds, DateTime? at) {
+    final batch = _db.batch();
+    for (final id in expenseIds) {
+      batch.update(_expenses(tripId).doc(id), {
+        'settledAt': at?.toIso8601String() ?? FieldValue.delete(),
       });
     }
     return batch.commit();

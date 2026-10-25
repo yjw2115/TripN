@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:travelen/app_providers.dart';
 import 'package:travelen/core/money/currency.dart';
 import 'package:travelen/core/money/exchange_rate.dart';
+import 'package:travelen/features/expense/data/expense_repository.dart';
 import 'package:travelen/features/expense/domain/expense.dart';
 import 'package:travelen/features/receipt/domain/receipt.dart';
 import 'package:travelen/features/settlement/domain/bet.dart';
@@ -25,7 +26,9 @@ const _minsu = Member(id: 'm', name: '민수');
 const _seoyeon = Member(id: 's', name: '서연');
 const _members = [_jimin, _minsu, _seoyeon];
 
-Expense _expense(String payer, int total, List<String> together) => Expense(
+Expense _expense(String payer, int total, List<String> together,
+        {DateTime? settledAt}) =>
+    Expense(
       id: 'e$total',
       title: '지출',
       category: ExpenseCategory.food,
@@ -35,6 +38,7 @@ Expense _expense(String payer, int total, List<String> together) => Expense(
       payerId: payer,
       createdBy: 'u1',
       participantIds: together,
+      settledAt: settledAt,
     );
 
 final _expenses = [
@@ -45,7 +49,8 @@ final _expenses = [
 Widget _app(
         [List<Expense>? expenses,
         SettlementBet? bet,
-        TripRepository? repository]) =>
+        TripRepository? repository,
+        ExpenseRepository? expenseRepository]) =>
     ProviderScope(
       overrides: [
         currentTripProvider.overrideWith((ref) async => Trip(
@@ -59,6 +64,8 @@ Widget _app(
             .overrideWith((ref) => Stream.value(expenses ?? _expenses)),
         if (repository != null)
           tripRepositoryProvider.overrideWithValue(repository),
+        if (expenseRepository != null)
+          expenseRepositoryProvider.overrideWithValue(expenseRepository),
       ],
       child: const MaterialApp(
         locale: Locale('ko'),
@@ -209,6 +216,111 @@ void main() {
       await tester.pumpAndSettle();
       expect((await db.doc('trips/t').get()).data()!.containsKey('settlementBet'),
           isFalse);
+    });
+  });
+
+  group('settling early', () {
+    /// 지출 문서가 있어야 정산 완료로 표시할 수 있다.
+    Future<FakeFirebaseFirestore> seeded() async {
+      final db = FakeFirebaseFirestore();
+      await db.doc('trips/t').set({
+        'name': '도쿄 여행',
+        'ownerId': 'u1',
+        'memberUids': ['u1'],
+      });
+      for (final e in _expenses) {
+        await db.doc('trips/t/expenses/${e.id}').set({'totalMinor': e.totalMinor});
+      }
+      return db;
+    }
+
+    Future<Map<String, dynamic>> expenseDoc(
+            FakeFirebaseFirestore db, String id) async =>
+        (await db.doc('trips/t/expenses/$id').get()).data()!;
+
+    testWidgets('picks some expenses, settles just those, and marks them done',
+        (tester) async {
+      final db = await seeded();
+      await tester.pumpWidget(_app(null, null, null, ExpenseRepository(db)));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('지출 고르기'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('10월 23일 · 30,000원'));
+      await tester.pump();
+      await tester.tap(find.text('1건 · 90,000원 정산하기'));
+      await tester.pumpAndSettle();
+
+      // 90,000원을 셋이 → 민수·서연이 지민에게 30,000원씩
+      expect(find.text('고른 지출'), findsOneWidget);
+      expect(find.text('3명 · 지출 1건 · 고르지 않은 1건은 빠져 있어요'),
+          findsOneWidget);
+      expect(find.text('서연 → 지민'), findsOneWidget);
+      expect(find.text('민수 → 지민'), findsOneWidget);
+      expect(find.text('30,000원'), findsNWidgets(2));
+
+      await tester.tap(find.text('정산 완료'));
+      await tester.pumpAndSettle();
+      expect(find.text('지출 1건을 정산 완료로 할까요?'), findsOneWidget);
+      await tester.tap(find.widgetWithText(TextButton, '정산 완료'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('지출 1건을 정산했어요'), findsOneWidget);
+      expect((await expenseDoc(db, 'e90000'))['settledAt'], isA<String>());
+      expect((await expenseDoc(db, 'e30000')).containsKey('settledAt'), isFalse);
+    });
+
+    testWidgets('an applied bet is used up by the settlement it went into',
+        (tester) async {
+      const bet = SettlementBet(
+        game: BetGame.wave,
+        stake: ChangeStake(10000),
+        loserId: 's',
+        participantIds: ['j', 'm', 's'],
+      );
+      final db = await seeded();
+      await db.doc('trips/t').update({'settlementBet': bet.toMap()});
+      await tester.pumpWidget(
+          _app(null, bet, TripRepository(db), ExpenseRepository(db)));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('정산 완료'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('게임 결과도 이번 정산에 넣고 지워요'), findsOneWidget);
+      await tester.tap(find.widgetWithText(TextButton, '정산 완료'));
+      await tester.pumpAndSettle();
+
+      expect((await db.doc('trips/t').get()).data()!.containsKey('settlementBet'),
+          isFalse);
+      expect((await expenseDoc(db, 'e90000'))['settledAt'], isA<String>());
+      expect((await expenseDoc(db, 'e30000'))['settledAt'], isA<String>());
+    });
+
+    testWidgets('settled expenses stay out and can be brought back',
+        (tester) async {
+      final db = await seeded();
+      final at = DateTime(2026, 10, 24, 21, 5);
+      await db
+          .doc('trips/t/expenses/e30000')
+          .update({'settledAt': at.toIso8601String()});
+      await tester.pumpWidget(_app([
+        _expenses[0],
+        _expense('m', 30000, ['m', 's'], settledAt: at),
+      ], null, null, ExpenseRepository(db)));
+      await tester.pumpAndSettle();
+
+      expect(find.text('90,000원'), findsOneWidget);
+      expect(find.text('미리 정산한 지출 1건은 빠져 있어요'), findsOneWidget);
+      await tester.tap(find.text('보기'));
+      await tester.pumpAndSettle();
+      expect(find.text('10월 24일 21:05 정산'), findsOneWidget);
+
+      await tester.tap(find.text('되돌리기'));
+      await tester.pumpAndSettle();
+      expect(find.text('이 정산을 되돌릴까요?'), findsOneWidget);
+      await tester.tap(find.text('되돌리기'));
+      await tester.pumpAndSettle();
+      expect((await expenseDoc(db, 'e30000')).containsKey('settledAt'), isFalse);
     });
   });
 

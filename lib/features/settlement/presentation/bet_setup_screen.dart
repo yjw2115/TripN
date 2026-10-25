@@ -141,7 +141,10 @@ class _BetSetupScreenState extends ConsumerState<BetSetupScreen> {
       );
     }
     _seed(trip, members);
-    final rated = expenses.where((e) => (e.totalKrw ?? 0) > 0).toList()
+    // 미리 정산한 지출은 쏠 수 없다.
+    final rated = expenses
+        .where((e) => !e.isSettled && (e.totalKrw ?? 0) > 0)
+        .toList()
       ..sort((a, b) => b.paidAt.compareTo(a.paidAt));
     final expense = rated.firstWhereOrNull((e) => e.id == _expenseId);
     final players = [

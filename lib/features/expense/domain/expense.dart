@@ -16,6 +16,7 @@ class Expense {
     this.receipt,
     this.participantIds = const [],
     this.source = 'receipt',
+    this.settledAt,
     FixedRate? rate,
   }) : _rate = rate;
 
@@ -36,7 +37,12 @@ class Expense {
 
   /// 'receipt'(영수증을 찍어서) 또는 'menu'(메뉴판에서 골라서).
   final String source;
+
+  /// 미리 정산을 마친 때. 함께 정산한 지출은 같은 값이다. 정산을 마친 지출은 남은 정산에서 빠진다.
+  final DateTime? settledAt;
   final FixedRate? _rate;
+
+  bool get isSettled => settledAt != null;
 
   /// 지출할 때 고정한 원화 환율. 아직 못 정했으면 null (원화 지출은 언제나 1).
   FixedRate? get rate =>
@@ -70,6 +76,7 @@ class Expense {
       participantIds:
           (map['participantIds'] as List?)?.cast<String>() ?? const [],
       source: map['source'] as String? ?? 'receipt',
+      settledAt: DateTime.tryParse(map['settledAt'] as String? ?? ''),
       rate: FixedRate.fromMap(map),
     );
   }

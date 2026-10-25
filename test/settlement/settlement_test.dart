@@ -21,6 +21,7 @@ Expense _expense({
   FixedRate? rate,
   List<String> together = const [],
   List<ReceiptItem> items = const [],
+  DateTime? settledAt,
 }) =>
     Expense(
       id: 'e${total}_$payer',
@@ -32,6 +33,7 @@ Expense _expense({
       payerId: payer,
       createdBy: 'u1',
       participantIds: together,
+      settledAt: settledAt,
       rate: rate,
       receipt: items.isEmpty
           ? null
@@ -248,6 +250,42 @@ void main() {
         [for (final t in result.transfers) (t.from.name, t.to.name, t.amount)],
         [('서연', '지민', 15000), ('서연', '민수', 10000)],
       );
+    });
+
+    test('expenses settled early are left out of what is still open', () {
+      final result = settle([
+        _expense(payer: 'j', total: 90000, together: _ids),
+        _expense(
+            payer: 'm',
+            total: 30000,
+            together: _ids,
+            settledAt: DateTime(2026, 10, 24)),
+      ], _members);
+      expect(result.totalKrw, 90000);
+      expect([for (final e in result.expenses) e.id], ['e90000_j']);
+      expect(result.leftOutCount, 0);
+      expect([for (final b in result.balances) b.net], [60000, -30000, -30000]);
+    });
+
+    test('only the picked expenses are settled now', () {
+      final expenses = [
+        _expense(payer: 'j', total: 90000, together: _ids),
+        _expense(payer: 'm', total: 30000, together: ['m', 's']),
+        _expense(payer: 's', total: 6000, together: _ids,
+            settledAt: DateTime(2026, 10, 24)),
+      ];
+      // 미리 정산한 지출은 골라도 들어가지 않는다.
+      final result =
+          settle(expenses, _members, only: {'e30000_m', 'e6000_s'});
+      expect(result.totalKrw, 30000);
+      expect([for (final e in result.expenses) e.id], ['e30000_m']);
+      expect(result.leftOutCount, 1);
+      expect(
+        [for (final t in result.transfers) (t.from.name, t.to.name, t.amount)],
+        [('서연', '민수', 15000)],
+      );
+      expect(settlementMessage('도쿄', result).split('\n')[1],
+          '고른 지출 1건 30,000원 · 3명');
     });
 
     test('nothing to send when everyone paid their own share', () {

@@ -176,6 +176,9 @@ enum BetSkip {
 
   /// 한 턱 쏘기로 고른 지출의 환율을 아직 못 정했다.
   expenseUnrated,
+
+  /// 한 턱 쏘기로 고른 지출이 이번 정산에 없다 (고르지 않았거나 미리 정산했다).
+  expenseLeftOut,
 }
 
 class Settlement {
@@ -184,12 +187,20 @@ class Settlement {
     required this.balances,
     required this.transfers,
     required this.unratedCount,
+    this.expenses = const [],
+    this.leftOutCount = 0,
     this.bet,
     this.betSkip,
   });
 
   /// 환율을 정한 지출의 원화 합계.
   final int totalKrw;
+
+  /// 이번 정산에 넣은 지출 (환율을 정한 것만). 정산을 마치면 이 지출들을 정산 완료로 표시한다.
+  final List<Expense> expenses;
+
+  /// 아직 정산 전인데 이번에 고르지 않아서 빠진 지출 수. 0보다 크면 일부만 정산한다.
+  final int leftOutCount;
   final List<MemberBalance> balances;
 
   /// 누가 누구에게 얼마. 송금 횟수가 적게 짝짓는다.
@@ -206,20 +217,26 @@ class Settlement {
 }
 
 /// 모두의 지출을 모아 각자 낸 돈과 쓴 돈을 맞추고, 보낼 돈을 정한다. 여행 중간에도 계산할 수 있다.
+/// 미리 정산을 마친 지출은 빼고, [only]가 있으면 그중 고른 지출만 정산한다.
 /// [bet]이 있으면 그 결과대로 걸린 사람이 더 낸다.
 Settlement settle(List<Expense> expenses, List<Member> members,
-    {SettlementBet? bet}) {
+    {SettlementBet? bet, Set<String>? only}) {
+  final open = [for (final e in expenses) if (!e.isSettled) e];
+  final picked =
+      only == null ? open : [for (final e in open) if (only.contains(e.id)) e];
   final ids = [for (final m in members) m.id];
   final paid = {for (final id in ids) id: 0};
   final owed = {for (final id in ids) id: 0};
+  final included = <Expense>[];
   var total = 0;
   var unrated = 0;
-  for (final e in expenses) {
+  for (final e in picked) {
     final shares = sharesOf(e, ids);
     if (shares == null) {
       unrated++;
       continue;
     }
+    included.add(e);
     total += e.totalKrw!;
     paid[e.payerId] = (paid[e.payerId] ?? 0) + e.totalKrw!;
     shares.forEach((id, krw) => owed[id] = (owed[id] ?? 0) + krw);
@@ -227,7 +244,8 @@ Settlement settle(List<Expense> expenses, List<Member> members,
 
   final outcome = bet == null
       ? null
-      : _applyBet(bet, expenses, members, paid: paid, owed: owed);
+      : _applyBet(bet, picked, members,
+          paid: paid, owed: owed, all: expenses);
   final delta = outcome?.delta ?? const <String, int>{};
   final balances = [
     for (final m in members)
@@ -242,6 +260,8 @@ Settlement settle(List<Expense> expenses, List<Member> members,
     balances: balances,
     transfers: _transfers(balances),
     unratedCount: unrated,
+    expenses: included,
+    leftOutCount: open.length - picked.length,
     bet: outcome?.applied,
     betSkip: outcome?.skip,
   );
@@ -254,12 +274,14 @@ typedef _BetOutcome = ({
 });
 
 /// 내기로 각자 더 낼 돈([_BetOutcome.delta], 합은 0). 반영하지 못하면 그 까닭.
+/// [expenses]는 이번에 정산하는 지출, [all]은 여행의 모든 지출이다.
 _BetOutcome _applyBet(
   SettlementBet bet,
   List<Expense> expenses,
   List<Member> members, {
   required Map<String, int> paid,
   required Map<String, int> owed,
+  required List<Expense> all,
 }) {
   _BetOutcome skip(BetSkip why) => (applied: null, skip: why, delta: const {});
 
@@ -284,7 +306,11 @@ _BetOutcome _applyBet(
       }
     case TreatStake(:final expenseId):
       expense = expenses.firstWhereOrNull((e) => e.id == expenseId);
-      if (expense == null) return skip(BetSkip.expenseGone);
+      if (expense == null) {
+        return skip(all.any((e) => e.id == expenseId)
+            ? BetSkip.expenseLeftOut
+            : BetSkip.expenseGone);
+      }
       final shares = sharesOf(expense, ids);
       if (shares == null) return skip(BetSkip.expenseUnrated);
       for (final id in others) {
@@ -386,7 +412,10 @@ String _won(int krw) => formatMoney(krw, Currency.krw);
 String settlementMessage(String tripName, Settlement settlement) {
   final lines = <String>[
     "[여행N] '$tripName' 정산",
-    '총 지출 ${_won(settlement.totalKrw)} · ${settlement.balances.length}명',
+    settlement.leftOutCount > 0
+        ? '고른 지출 ${settlement.expenses.length}건 ${_won(settlement.totalKrw)} · '
+            '${settlement.balances.length}명'
+        : '총 지출 ${_won(settlement.totalKrw)} · ${settlement.balances.length}명',
     '',
   ];
   if (settlement.bet case final bet?) {

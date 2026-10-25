@@ -155,6 +155,17 @@ void main() {
     });
   });
 
+  test('a treat on an expense outside this settlement is skipped', () {
+    final result = settle(
+      _expenses,
+      _members,
+      bet: _bet(const TreatStake('sushi'), 's'),
+      only: {for (final e in _expenses) if (e.id != 'sushi') e.id},
+    );
+    expect(result.betSkip, BetSkip.expenseLeftOut);
+    expect(result.bet, isNull);
+  });
+
   test('is skipped when the loser left the trip', () {
     final result = settle(
       _expenses,
