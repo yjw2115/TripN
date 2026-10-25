@@ -395,6 +395,23 @@ describe('exchange rates', () => {
   });
 });
 
+describe('settlement bet', () => {
+  const bet = { game: 'ddakji', stake: 'change', unit: 1000, loserId: 'alice', participantIds: ['alice'] };
+
+  test('members save a mini-game result on the trip and clear it again', async () => {
+    await createTrip('alice');
+    const d = db('alice');
+    await assertSucceeds(updateDoc(doc(d, 'trips', TRIP), { settlementBet: bet }));
+    await assertSucceeds(updateDoc(doc(d, 'trips', TRIP), { settlementBet: deleteField() }));
+    await assertFails(updateDoc(doc(d, 'trips', TRIP), { settlementBet: 'alice' }));
+  });
+
+  test('outsiders cannot set it', async () => {
+    await createTrip('alice');
+    await assertFails(updateDoc(doc(db('bob'), 'trips', TRIP), { settlementBet: bet }));
+  });
+});
+
 describe('menus', () => {
   const menu = (createdBy) => ({
     storeName: '一蘭',

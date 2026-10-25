@@ -58,12 +58,13 @@ service cloud.firestore {
         && request.resource.data.ownerId == request.auth.uid
         && request.resource.data.memberUids == [request.auth.uid];
 
-      // 멤버: 이름·초대 코드·직접 정한 환율을 바꾸고, 소유자가 아니면 자기 uid를 뺄 수 있다(나가기).
+      // 멤버: 이름·초대 코드·직접 정한 환율·정산 내기를 바꾸고, 소유자가 아니면 자기 uid를 뺄 수 있다(나가기).
       allow update: if signedIn()
         && request.auth.uid in resource.data.memberUids
-        && changedKeys().hasOnly(['name', 'inviteCode', 'memberUids', 'manualRates'])
+        && changedKeys().hasOnly(['name', 'inviteCode', 'memberUids', 'manualRates', 'settlementBet'])
         && validName(request.resource.data.name)
         && (!('manualRates' in changedKeys()) || request.resource.data.manualRates is map)
+        && (!('settlementBet' in request.resource.data) || request.resource.data.settlementBet is map)
         && (!('inviteCode' in changedKeys())
             || existsAfter(/databases/$(database)/documents/invites/$(request.resource.data.inviteCode)))
         && (!('memberUids' in changedKeys())

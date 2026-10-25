@@ -1,5 +1,7 @@
 import 'dart:math';
 
+import '../../settlement/domain/bet.dart';
+
 /// 여행(모임). 동행자는 [Member] 문서로 따로 두고,
 /// 여기에는 이 여행에 들어온 앱 사용자 uid만 모아 둔다 (보안 규칙과 "내 여행" 조회용).
 class Trip {
@@ -10,6 +12,7 @@ class Trip {
     required this.memberUids,
     this.inviteCode,
     this.manualRates = const {},
+    this.settlementBet,
   });
 
   final String id;
@@ -23,6 +26,9 @@ class Trip {
   /// 수출입은행에 없는 통화(동·페소 등)에 쓸, 여행에서 직접 정한 환율. 통화 코드 → 1단위당 원화.
   final Map<String, double> manualRates;
 
+  /// 미니게임으로 정한 정산 내기. 동행자 모두 같은 결과를 본다. 없으면 원래 정산.
+  final SettlementBet? settlementBet;
+
   factory Trip.fromMap(String id, Map<String, Object?> map) => Trip(
         id: id,
         name: map['name'] as String? ?? '',
@@ -33,6 +39,7 @@ class Trip {
           for (final e in ((map['manualRates'] as Map?) ?? const {}).entries)
             e.key as String: (e.value as num).toDouble(),
         },
+        settlementBet: SettlementBet.fromMap(map['settlementBet'] as Map?),
       );
 }
 

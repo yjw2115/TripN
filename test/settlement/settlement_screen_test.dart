@@ -1,3 +1,4 @@
+import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -8,8 +9,10 @@ import 'package:travelen/core/money/currency.dart';
 import 'package:travelen/core/money/exchange_rate.dart';
 import 'package:travelen/features/expense/domain/expense.dart';
 import 'package:travelen/features/receipt/domain/receipt.dart';
+import 'package:travelen/features/settlement/domain/bet.dart';
 import 'package:travelen/features/settlement/domain/settlement.dart';
 import 'package:travelen/features/settlement/presentation/settlement_screen.dart';
+import 'package:travelen/features/trip/data/trip_repository.dart';
 import 'package:travelen/features/trip/domain/trip.dart';
 
 const _jimin = Member(
@@ -39,13 +42,23 @@ final _expenses = [
   _expense('m', 30000, ['m', 's']),
 ];
 
-Widget _app([List<Expense>? expenses]) => ProviderScope(
+Widget _app(
+        [List<Expense>? expenses,
+        SettlementBet? bet,
+        TripRepository? repository]) =>
+    ProviderScope(
       overrides: [
-        currentTripProvider.overrideWith((ref) async => const Trip(
-            id: 't', name: '도쿄 여행', ownerId: 'u1', memberUids: ['u1'])),
+        currentTripProvider.overrideWith((ref) async => Trip(
+            id: 't',
+            name: '도쿄 여행',
+            ownerId: 'u1',
+            memberUids: const ['u1'],
+            settlementBet: bet)),
         membersProvider.overrideWith((ref) => Stream.value(_members)),
         expensesProvider
             .overrideWith((ref) => Stream.value(expenses ?? _expenses)),
+        if (repository != null)
+          tripRepositoryProvider.overrideWithValue(repository),
       ],
       child: const MaterialApp(
         locale: Locale('ko'),
@@ -151,6 +164,51 @@ void main() {
       await tester.tap(find.text('원화만'));
       await tester.pumpAndSettle();
       expect(find.textContaining('≈ ¥'), findsNothing);
+    });
+  });
+
+  group('mini-game bet', () {
+    // 민수가 낸 30,000원(민수·서연)을 서연이 쏜다.
+    const bet = SettlementBet(
+      game: BetGame.wave,
+      stake: TreatStake('e30000'),
+      loserId: 's',
+      participantIds: ['j', 'm', 's'],
+    );
+
+    testWidgets('without a bet the card offers a game', (tester) async {
+      await tester.pumpWidget(_app());
+      await tester.pumpAndSettle();
+      expect(find.text('미니게임으로 정하기'), findsOneWidget);
+    });
+
+    testWidgets('a bet changes who sends what, and can be undone',
+        (tester) async {
+      final db = FakeFirebaseFirestore();
+      await db.doc('trips/t').set({
+        'name': '도쿄 여행',
+        'ownerId': 'u1',
+        'memberUids': ['u1'],
+        'settlementBet': bet.toMap(),
+      });
+      await tester.pumpWidget(_app(null, bet, TripRepository(db)));
+      await tester.pumpAndSettle();
+
+      expect(find.text('파도타기로 정했어요'), findsOneWidget);
+      expect(find.text("서연님이 '지출'을 쏴요"), findsOneWidget);
+      expect(find.text('15,000원 더 내요'), findsOneWidget);
+      // 민수는 보낼 돈이 없어지고, 서연이 민수 몫까지 지민에게 보낸다.
+      expect(find.text('서연 → 지민'), findsOneWidget);
+      expect(find.text('민수 → 지민'), findsNothing);
+      expect(find.text('60,000원'), findsOneWidget);
+      expect(find.textContaining('내기 +15,000원'), findsOneWidget);
+
+      await tester.tap(find.text('원래 정산으로'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('되돌리기'));
+      await tester.pumpAndSettle();
+      expect((await db.doc('trips/t').get()).data()!.containsKey('settlementBet'),
+          isFalse);
     });
   });
 

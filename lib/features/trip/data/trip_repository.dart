@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:collection/collection.dart';
 
+import '../../settlement/domain/bet.dart';
 import '../domain/trip.dart';
 
 /// 초대 코드로 찾은 여행. 참여하기 전이라 이름만 보인다.
@@ -16,7 +17,8 @@ class InviteInfo {
 
 /// Firestore 구조
 ///   users/{uid}                         currentTripId
-///   trips/{tripId}                      name, ownerId, memberUids, inviteCode, manualRates, createdAt
+///   trips/{tripId}                      name, ownerId, memberUids, inviteCode, manualRates, createdAt,
+///                                       settlementBet{game, stake, unit|expenseId, loserId, participantIds}
 ///   trips/{tripId}/members/{memberId}   name, uid(이름만 있는 동행자는 null), account{bank,number,holder},
 ///                                       createdBy, createdAt
 ///   invites/{code}                      tripId, tripName, createdBy, createdAt
@@ -132,6 +134,11 @@ class TripRepository {
   /// 동행자 모두 같은 값을 쓰도록 여행에 둔다.
   Future<void> setManualRate(String tripId, String currencyCode, double krwPerUnit) =>
       _trips.doc(tripId).update({'manualRates.$currencyCode': krwPerUnit});
+
+  /// 미니게임 결과를 정산에 반영한다. null이면 지워서 원래 정산으로 돌아간다.
+  Future<void> setSettlementBet(String tripId, SettlementBet? bet) =>
+      _trips.doc(tripId).update(
+          {'settlementBet': bet?.toMap() ?? FieldValue.delete()});
 
   /// 먼저 들어온 사람부터.
   Stream<List<Member>> watchMembers(String tripId) =>

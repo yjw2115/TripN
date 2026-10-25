@@ -131,6 +131,26 @@ trips/{tripId}/menus/{menuId}   storeName, currency, countryCode, taxIncluded, t
 - 찍은 메뉴판은 여행에 가게별로 남아서 같은 가게에서 다시 주문할 때 다시 찍지 않는다. 메뉴 이름·가격·가게 이름을 고칠 수 있다.
 - 인식 확인: `dart run tool/menu_eval/eval.dart` (Wikimedia Commons의 일본·태국·베트남·미국·대만·한국 메뉴판, `tool/menu_eval/cases.json`)
 
+## 6단계: 미니게임으로 정하기
+
+정산 화면의 "미니게임으로 정하기" → 무엇을 걸지 · 누가 할지 · 어떤 게임으로 할지 고르기 → 게임 → 정산에 반영하기
+
+```
+trips/{tripId}   settlementBet{game(ddakji|wave), stake(change|treat), unit | expenseId, loserId, participantIds}
+```
+
+- 선택 사항이다. 게임을 해도 "정산에 반영하기"를 눌러야 바뀌고, 정산 화면의 "원래 정산으로"를 누르면 필드를 지워서 원래 정산으로 돌아간다.
+  여행 문서에 두어서 동행자 모두 같은 정산을 보고, 되돌리기도 모두에게 적용된다.
+- 내기 (`lib/features/settlement/domain/bet.dart`, 계산은 `settle(..., bet:)`)
+  - 잔돈 몰아주기: 참여한 사람의 보낼 돈은 천 원(만 원) 단위로 내리고 받을 돈은 올린다. 그 차이를 걸린 사람이 낸다.
+  - 한 턱 쏘기: 고른 지출에서 참여한 사람들의 몫을 걸린 사람이 대신 낸다.
+  - 참여하지 않은 사람의 정산은 그대로다. 결과만 저장하고 금액은 지금 지출로 그때그때 계산한다.
+  - 건 지출이 지워졌거나 환율이 없거나, 걸린 사람이 여행에서 빠지면 원래 정산을 보여주고 까닭을 알려준다.
+- 게임 (`lib/features/settlement/presentation/games/`)
+  - 딱지 뒤집기: 종이 딱지 중 한 장만 뒷면이 빨간색이고 차례대로 한 장씩 뒤집는다. 초록은 통과, 빨강은 당첨. 빨간 딱지 자리는 처음에 정해 두고 바꾸지 않는다.
+  - 파도타기: 한 사람이 물고기 한 마리씩 맡아 파도를 타고, 가장 늦게 도착한 사람이 걸린다. 출발할 때 경주를 미리 계산하고, 속도·졸기·큰 파도는 모두 같은 분포에서 뽑아서 레인마다 걸릴 확률이 같다.
+  - 무작위는 `Random.secure()`. 그림은 이모지와 CustomPainter만 쓰고 에셋을 더하지 않았다.
+
 ## Firebase 설정 (travelen-468bc)
 
 1. AI Logic → 시작하기 → Gemini Developer API

@@ -10,6 +10,8 @@ import 'features/menu/presentation/menu_screen.dart';
 import 'features/menu/presentation/menus_screen.dart';
 import 'features/receipt/presentation/receipt_analyze_screen.dart';
 import 'features/receipt/presentation/receipt_review_screen.dart';
+import 'features/settlement/presentation/bet_game_screen.dart';
+import 'features/settlement/presentation/bet_setup_screen.dart';
 import 'features/settlement/presentation/settlement_screen.dart';
 import 'features/trip/presentation/join_trip_screen.dart';
 import 'features/trip/presentation/trip_screen.dart';
@@ -48,6 +50,14 @@ final _router = GoRouter(
     GoRoute(
         path: '/settlement',
         builder: (context, state) => const SettlementScreen()),
+    GoRoute(
+        path: '/settlement/bet',
+        builder: (context, state) => const BetSetupScreen()),
+    GoRoute(
+      path: '/settlement/bet/play',
+      builder: (context, state) =>
+          BetGameScreen(args: state.extra! as BetPlayArgs),
+    ),
     GoRoute(
         path: '/join', builder: (context, state) => const JoinTripScreen()),
     // 초대 링크(https://travelen-468bc.web.app/join/{code}, tripn://app/join/{code})가 여기로 온다.

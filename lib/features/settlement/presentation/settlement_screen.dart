@@ -2,6 +2,7 @@ import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../../app_providers.dart';
@@ -9,14 +10,17 @@ import '../../../core/money/currency.dart';
 import '../../../core/money/exchange_rate.dart';
 import '../../../core/money/money_format.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../trip/domain/trip.dart';
 import '../../trip/presentation/widgets/account_sheet.dart';
 import '../../trip/presentation/widgets/trip_widgets.dart';
 import '../domain/settlement.dart';
+import 'games/game_icon.dart';
 
 String _won(int krw) => formatMoney(krw, Currency.krw);
 
 /// 지금까지의 지출로 누가 누구에게 얼마 보낼지 보여준다. 여행 중간에도 볼 수 있다.
 /// 외화로 쓴 여행이면 현지 화폐로 얼마인지도 함께 보여준다 (복사·메시지는 원화).
+/// 미니게임으로 정한 내기가 있으면 반영하고, 언제든 원래 정산으로 되돌릴 수 있다.
 class SettlementScreen extends ConsumerStatefulWidget {
   const SettlementScreen({super.key});
 
@@ -39,7 +43,7 @@ class _SettlementScreenState extends ConsumerState<SettlementScreen> {
         body: const Center(child: CircularProgressIndicator()),
       );
     }
-    final result = settle(expenses, members);
+    final result = settle(expenses, members, bet: trip.settlementBet);
     final options = localCurrenciesOf(expenses);
     final local = _localCode == Currency.krw.code
         ? null
@@ -89,6 +93,15 @@ class _SettlementScreenState extends ConsumerState<SettlementScreen> {
               onSelected: (code) => setState(() => _localCode = code),
             ),
           ],
+          if (members.length > 1 &&
+              (result.totalKrw > 0 || trip.settlementBet != null)) ...[
+            const SizedBox(height: 12),
+            _BetCard(
+              settlement: result,
+              onPlay: () => _playBet(context),
+              onReset: () => _resetBet(context, trip),
+            ),
+          ],
           const SizedBox(height: 12),
           SectionCard(
             title: '보낼 돈',
@@ -124,6 +137,15 @@ class _SettlementScreenState extends ConsumerState<SettlementScreen> {
                   style: TextStyle(fontSize: 13, color: AppColors.textHint, height: 1.4),
                 ),
               ),
+              if (result.bet != null)
+                const Padding(
+                  padding: EdgeInsets.only(top: 4, bottom: 4),
+                  child: Text(
+                    '내기 금액은 게임에서 걸린 사람이 더 내고, 그만큼 다른 참여자가 덜 내요.',
+                    style: TextStyle(
+                        fontSize: 13, color: AppColors.textHint, height: 1.4),
+                  ),
+                ),
               if (local != null)
                 Padding(
                   padding: const EdgeInsets.only(top: 4, bottom: 4),
@@ -162,6 +184,27 @@ class _SettlementScreenState extends ConsumerState<SettlementScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _playBet(BuildContext context) async {
+    final applied = await context.push<bool>('/settlement/bet');
+    if (applied == true && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('게임 결과를 정산에 반영했어요')));
+    }
+  }
+
+  /// 동행자 모두의 정산이 원래대로 돌아가서 한 번 묻는다.
+  Future<void> _resetBet(BuildContext context, Trip trip) async {
+    final confirmed = await confirmDialog(
+      context,
+      title: '원래 정산으로 되돌릴까요?',
+      body: '게임 결과를 지우고 지출대로 다시 나눠요. 동행자 모두의 정산 화면이 함께 바뀌어요.',
+      confirmLabel: '되돌리기',
+    );
+    if (!confirmed || !context.mounted) return;
+    reportWriteErrors(
+        context, ref.read(tripRepositoryProvider).setSettlementBet(trip.id, null));
   }
 
   /// 금액이나 계좌·금액을 복사해서 송금 앱에 붙여 넣는다 (원화). 계좌가 없으면 등록하게 한다.
@@ -225,6 +268,148 @@ class _SettlementScreenState extends ConsumerState<SettlementScreen> {
             const SizedBox(height: 8),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// 미니게임으로 정하기. 내기를 반영했으면 결과와 되돌리기를 보여준다.
+class _BetCard extends StatelessWidget {
+  const _BetCard(
+      {required this.settlement, required this.onPlay, required this.onReset});
+
+  final Settlement settlement;
+  final VoidCallback onPlay;
+  final VoidCallback onReset;
+
+  @override
+  Widget build(BuildContext context) {
+    final applied = settlement.bet;
+    final skip = settlement.betSkip;
+    if (applied == null && skip == null) {
+      return Material(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(20),
+        child: InkWell(
+          onTap: onPlay,
+          borderRadius: BorderRadius.circular(20),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
+            child: Row(
+              children: [
+                Container(
+                  width: 48,
+                  height: 48,
+                  alignment: Alignment.center,
+                  decoration: const BoxDecoration(
+                      color: AppColors.primaryLight, shape: BoxShape.circle),
+                  child: const Text('🎲', style: TextStyle(fontSize: 24)),
+                ),
+                const SizedBox(width: 14),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('미니게임으로 정하기',
+                          style: TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.w700)),
+                      SizedBox(height: 2),
+                      Text('잔돈 몰아주기나 한 턱 쏘기를 게임으로 정해요',
+                          style: TextStyle(
+                              fontSize: 13, color: AppColors.textHint)),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.chevron_right_rounded,
+                    color: AppColors.textHint),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    final game = applied?.bet.game;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      decoration: BoxDecoration(
+        color: applied != null ? const Color(0xFFFFF6E0) : AppColors.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+            color: applied != null
+                ? const Color(0xFFFFE2A8)
+                : AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                alignment: Alignment.center,
+                decoration: const BoxDecoration(
+                    color: AppColors.surface, shape: BoxShape.circle),
+                child: game == null
+                    ? const Text('🎲', style: TextStyle(fontSize: 24))
+                    : GameIcon(game, size: 28),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (applied != null) ...[
+                      Text(
+                          '${game!.label}${particle(game.label, '으로', '로')} 정했어요',
+                          style: const TextStyle(
+                              fontSize: 13, color: AppColors.textSub)),
+                      const SizedBox(height: 2),
+                      Text(betSummary(applied),
+                          style: const TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.w700)),
+                      Text('${_won(applied.amount)} 더 내요',
+                          style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.danger)),
+                    ] else
+                      Text(
+                        switch (skip!) {
+                          BetSkip.loserGone =>
+                            '게임에서 걸린 사람이 여행에서 빠져서 원래 정산으로 보여요',
+                          BetSkip.expenseGone =>
+                            '내기에 건 지출이 지워져서 원래 정산으로 보여요',
+                          BetSkip.expenseUnrated =>
+                            '내기에 건 지출의 환율을 아직 못 정해서 원래 정산으로 보여요',
+                        },
+                        style: const TextStyle(
+                            fontSize: 14, color: AppColors.warning),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              TextButton.icon(
+                onPressed: onReset,
+                style: TextButton.styleFrom(foregroundColor: AppColors.textSub),
+                icon: const Icon(Icons.undo_rounded, size: 18),
+                label: Text(applied != null ? '원래 정산으로' : '내기 지우기'),
+              ),
+              TextButton.icon(
+                onPressed: onPlay,
+                icon: const Icon(Icons.replay_rounded, size: 18),
+                label: const Text('다시 하기'),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -340,7 +525,13 @@ class _BalanceRow extends StatelessWidget {
       leading: MemberAvatar(balance.member),
       title: Text(balance.member.name,
           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-      subtitle: Text('낸 돈 ${_won(balance.paid)} · 쓴 돈 ${_won(balance.owed)}',
+      subtitle: Text(
+          [
+            '낸 돈 ${_won(balance.paid)}',
+            '쓴 돈 ${_won(balance.owed)}',
+            if (balance.bet != 0)
+              '내기 ${balance.bet > 0 ? '+' : '−'}${_won(balance.bet.abs())}',
+          ].join(' · '),
           style: const TextStyle(fontSize: 13, color: AppColors.textHint)),
       trailing: Column(
         mainAxisAlignment: MainAxisAlignment.center,

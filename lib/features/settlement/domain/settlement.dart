@@ -1,7 +1,10 @@
+import 'package:collection/collection.dart';
+
 import '../../../core/money/currency.dart';
 import '../../../core/money/money_format.dart';
 import '../../expense/domain/expense.dart';
 import '../../trip/domain/trip.dart';
+import 'bet.dart';
 
 /// [total]을 [weights] 비율로 나눈다. 나눈 값의 합은 언제나 [total]과 같다.
 ///
@@ -81,8 +84,12 @@ Map<String, int>? sharesOf(Expense expense, List<String> memberIds) {
 }
 
 class MemberBalance {
-  const MemberBalance(
-      {required this.member, required this.paid, required this.owed});
+  const MemberBalance({
+    required this.member,
+    required this.paid,
+    required this.owed,
+    this.bet = 0,
+  });
 
   final Member member;
 
@@ -92,8 +99,11 @@ class MemberBalance {
   /// 내 몫으로 쓴 금액.
   final int owed;
 
+  /// 내기로 더 내는 돈 (걸린 사람은 양수, 덕을 본 사람은 음수).
+  final int bet;
+
   /// 양수면 받을 돈, 음수면 보낼 돈.
-  int get net => paid - owed;
+  int get net => paid - owed - bet;
 }
 
 class Transfer {
@@ -104,12 +114,45 @@ class Transfer {
   final int amount;
 }
 
+/// 정산에 반영한 내기.
+class AppliedBet {
+  const AppliedBet({
+    required this.bet,
+    required this.loser,
+    required this.amount,
+    this.expense,
+  });
+
+  final SettlementBet bet;
+  final Member loser;
+
+  /// 걸린 사람이 더 내는 돈 (다른 참여자가 덜 내는 돈의 합).
+  final int amount;
+
+  /// 한 턱 쏘기로 고른 지출.
+  final Expense? expense;
+}
+
+/// 내기를 반영하지 못한 까닭. 그동안은 원래 정산을 보여준다.
+enum BetSkip {
+  /// 걸린 사람이 여행에서 빠졌다.
+  loserGone,
+
+  /// 한 턱 쏘기로 고른 지출이 지워졌다.
+  expenseGone,
+
+  /// 한 턱 쏘기로 고른 지출의 환율을 아직 못 정했다.
+  expenseUnrated,
+}
+
 class Settlement {
   const Settlement({
     required this.totalKrw,
     required this.balances,
     required this.transfers,
     required this.unratedCount,
+    this.bet,
+    this.betSkip,
   });
 
   /// 환율을 정한 지출의 원화 합계.
@@ -121,10 +164,18 @@ class Settlement {
 
   /// 환율을 아직 못 정해서 계산에서 빠진 지출 수.
   final int unratedCount;
+
+  /// 반영한 내기. 내기가 없거나 반영하지 못했으면 null.
+  final AppliedBet? bet;
+
+  /// 내기가 있는데 반영하지 못한 까닭.
+  final BetSkip? betSkip;
 }
 
 /// 모두의 지출을 모아 각자 낸 돈과 쓴 돈을 맞추고, 보낼 돈을 정한다. 여행 중간에도 계산할 수 있다.
-Settlement settle(List<Expense> expenses, List<Member> members) {
+/// [bet]이 있으면 그 결과대로 걸린 사람이 더 낸다.
+Settlement settle(List<Expense> expenses, List<Member> members,
+    {SettlementBet? bet}) {
   final ids = [for (final m in members) m.id];
   final paid = {for (final id in ids) id: 0};
   final owed = {for (final id in ids) id: 0};
@@ -141,16 +192,101 @@ Settlement settle(List<Expense> expenses, List<Member> members) {
     shares.forEach((id, krw) => owed[id] = (owed[id] ?? 0) + krw);
   }
 
+  final outcome = bet == null
+      ? null
+      : _applyBet(bet, expenses, members, paid: paid, owed: owed);
+  final delta = outcome?.delta ?? const <String, int>{};
   final balances = [
     for (final m in members)
-      MemberBalance(member: m, paid: paid[m.id]!, owed: owed[m.id]!),
+      MemberBalance(
+          member: m,
+          paid: paid[m.id]!,
+          owed: owed[m.id]!,
+          bet: delta[m.id] ?? 0),
   ];
   return Settlement(
     totalKrw: total,
     balances: balances,
     transfers: _transfers(balances),
     unratedCount: unrated,
+    bet: outcome?.applied,
+    betSkip: outcome?.skip,
   );
+}
+
+typedef _BetOutcome = ({
+  AppliedBet? applied,
+  BetSkip? skip,
+  Map<String, int> delta,
+});
+
+/// 내기로 각자 더 낼 돈([_BetOutcome.delta], 합은 0). 반영하지 못하면 그 까닭.
+_BetOutcome _applyBet(
+  SettlementBet bet,
+  List<Expense> expenses,
+  List<Member> members, {
+  required Map<String, int> paid,
+  required Map<String, int> owed,
+}) {
+  _BetOutcome skip(BetSkip why) => (applied: null, skip: why, delta: const {});
+
+  final loser = members.firstWhereOrNull((m) => m.id == bet.loserId);
+  if (loser == null) return skip(BetSkip.loserGone);
+  final ids = [for (final m in members) m.id];
+  // 여행에서 빠진 참여자는 건너뛴다.
+  final others = {
+    for (final id in bet.participantIds)
+      if (id != loser.id && ids.contains(id)) id,
+  };
+  final delta = <String, int>{};
+  Expense? expense;
+  switch (bet.stake) {
+    case ChangeStake(:final unit):
+      for (final id in others) {
+        final net = paid[id]! - owed[id]!;
+        // 보낼 돈은 내리고 받을 돈은 올린다. 차이는 걸린 사람이 낸다.
+        final rounded =
+            net >= 0 ? (net + unit - 1) ~/ unit * unit : -(-net ~/ unit * unit);
+        delta[id] = net - rounded;
+      }
+    case TreatStake(:final expenseId):
+      expense = expenses.firstWhereOrNull((e) => e.id == expenseId);
+      if (expense == null) return skip(BetSkip.expenseGone);
+      final shares = sharesOf(expense, ids);
+      if (shares == null) return skip(BetSkip.expenseUnrated);
+      for (final id in others) {
+        delta[id] = -(shares[id] ?? 0);
+      }
+  }
+  final amount = -delta.values.fold(0, (a, b) => a + b);
+  delta[loser.id] = amount;
+  return (
+    applied:
+        AppliedBet(bet: bet, loser: loser, amount: amount, expense: expense),
+    skip: null,
+    delta: delta,
+  );
+}
+
+/// 받침이 있으면 [withFinal], 없으면 [without]. 한글로 끝나지 않으면 "을(를)"처럼 둘 다.
+String particle(String word, String withFinal, String without) {
+  final last = word.trim().runes.lastOrNull;
+  if (last == null || last < 0xAC00 || last > 0xD7A3) {
+    return '$withFinal($without)';
+  }
+  return (last - 0xAC00) % 28 == 0 ? without : withFinal;
+}
+
+/// "민수님이 잔돈을 몰아서 내요", "민수님이 '스시로'를 쏴요"
+String betSummary(AppliedBet applied) {
+  final name = applied.loser.name;
+  switch (applied.bet.stake) {
+    case ChangeStake():
+      return '$name님이 잔돈을 몰아서 내요';
+    case TreatStake():
+      final title = applied.expense!.title;
+      return "$name님이 '$title'${particle(title, '을', '를')} 쏴요";
+  }
 }
 
 /// 가장 많이 보낼 사람과 가장 많이 받을 사람을 차례로 짝짓는다 (최대 인원 − 1번).
@@ -220,6 +356,12 @@ String settlementMessage(String tripName, Settlement settlement) {
     '총 지출 ${_won(settlement.totalKrw)} · ${settlement.balances.length}명',
     '',
   ];
+  if (settlement.bet case final bet?) {
+    lines.addAll([
+      '🎲 ${bet.bet.game.label} 내기: ${betSummary(bet)} (+${_won(bet.amount)})',
+      '',
+    ]);
+  }
   if (settlement.transfers.isEmpty) {
     lines.add('서로 보낼 돈이 없어요.');
   } else {
