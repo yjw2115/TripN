@@ -5,7 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../app_providers.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../receipt/presentation/widgets/edit_sheets.dart';
+import '../../domain/bank.dart';
 import '../../domain/trip.dart';
+import 'bank_picker.dart';
 import 'trip_widgets.dart';
 
 /// 정산 때 돈을 받을 계좌를 등록한다. 이름만 있는 동행자 것도 대신 넣을 수 있다.
@@ -30,7 +32,8 @@ class _AccountSheet extends StatefulWidget {
 }
 
 class _AccountSheetState extends State<_AccountSheet> {
-  late final _bank = TextEditingController(text: widget.member.account?.bank);
+  /// 고른 은행 이름. 예전에 직접 적은 이름이면 고르기 전까지 그대로 둔다.
+  late String _bank = widget.member.account?.bank ?? '';
   late final _number =
       TextEditingController(text: widget.member.account?.number);
   late final _holder = TextEditingController(
@@ -38,10 +41,15 @@ class _AccountSheetState extends State<_AccountSheet> {
 
   @override
   void dispose() {
-    for (final c in [_bank, _number, _holder]) {
+    for (final c in [_number, _holder]) {
       c.dispose();
     }
     super.dispose();
+  }
+
+  Future<void> _pickBank() async {
+    final picked = await showBankPicker(context, selected: _bank);
+    if (picked != null) setState(() => _bank = picked);
   }
 
   Widget _field(String label, TextEditingController controller,
@@ -79,7 +87,7 @@ class _AccountSheetState extends State<_AccountSheet> {
           ? null
           : () => Navigator.pop(context, (
                 account: BankAccount(
-                  bank: _bank.text.trim(),
+                  bank: _bank.trim(),
                   number: number,
                   holder: _holder.text.trim(),
                 ),
@@ -96,12 +104,68 @@ class _AccountSheetState extends State<_AccountSheet> {
               style: TextStyle(fontSize: 14, color: AppColors.textSub, height: 1.4),
             ),
           ),
-          _field('은행', _bank, hint: '예) 카카오뱅크', autofocus: true),
+          _BankField(bank: _bank, onTap: _pickBank),
           _field('계좌번호', _number,
               hint: '예) 3333-01-1234567',
               keyboard: TextInputType.number,
               formatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9\-]'))]),
           _field('예금주', _holder),
+        ],
+      ),
+    );
+  }
+}
+
+/// 은행 칸. 누르면 은행 목록에서 고른다.
+class _BankField extends StatelessWidget {
+  const _BankField({required this.bank, required this.onTap});
+
+  final String bank;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final known = Bank.find(bank);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('은행',
+              style: TextStyle(fontSize: 13, color: AppColors.textHint)),
+          const SizedBox(height: 6),
+          Material(
+            color: AppColors.background,
+            borderRadius: BorderRadius.circular(12),
+            child: InkWell(
+              onTap: onTap,
+              borderRadius: BorderRadius.circular(12),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                child: Row(
+                  children: [
+                    if (bank.isNotEmpty) ...[
+                      BankIcon(bank, size: 32),
+                      const SizedBox(width: 10),
+                    ] else
+                      const SizedBox(width: 4, height: 32),
+                    Expanded(
+                      child: Text(
+                        bank.isEmpty ? '은행 선택' : (known?.name ?? bank),
+                        style: TextStyle(
+                            fontSize: 16,
+                            color: bank.isEmpty
+                                ? AppColors.textHint
+                                : AppColors.text),
+                      ),
+                    ),
+                    const Icon(Icons.expand_more_rounded,
+                        color: AppColors.textSub),
+                  ],
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );

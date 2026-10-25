@@ -11,6 +11,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../receipt/presentation/widgets/edit_sheets.dart';
 import '../domain/trip.dart';
 import 'widgets/account_sheet.dart';
+import 'widgets/bank_picker.dart';
 import 'widgets/manual_rate_sheet.dart';
 import 'widgets/trip_widgets.dart';
 
@@ -162,7 +163,9 @@ class TripScreen extends ConsumerWidget {
               onTap: () => Navigator.pop(context, _MemberAction.rename),
             ),
             ListTile(
-              leading: const Icon(Icons.account_balance_outlined),
+              leading: member.account == null
+                  ? const Icon(Icons.account_balance_outlined)
+                  : BankIcon(member.account!.bank, size: 28),
               title: Text(member.account == null ? '받을 계좌 등록' : '받을 계좌 수정'),
               subtitle: member.account == null
                   ? null

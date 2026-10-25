@@ -16,6 +16,7 @@ import '../../receipt/presentation/widgets/category_badge.dart';
 import '../../receipt/presentation/widgets/edit_sheets.dart';
 import '../../trip/domain/trip.dart';
 import '../../trip/presentation/widgets/account_sheet.dart';
+import '../../trip/presentation/widgets/bank_picker.dart';
 import '../../trip/presentation/widgets/trip_widgets.dart';
 import '../domain/settlement.dart';
 import 'games/game_icon.dart';
@@ -378,7 +379,7 @@ class _SettlementScreenState extends ConsumerState<SettlementScreen> {
             ),
             if (account != null)
               ListTile(
-                leading: const Icon(Icons.account_balance_outlined),
+                leading: BankIcon(account.bank, size: 28),
                 title: const Text('계좌와 금액 복사'),
                 subtitle: Text('${account.display} ${_won(t.amount)}'),
                 onTap: () => copy(sheetContext,
