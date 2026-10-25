@@ -13,6 +13,7 @@ import 'package:travelen/features/receipt/domain/receipt.dart';
 import 'package:travelen/features/settlement/presentation/bet_game_screen.dart';
 import 'package:travelen/features/settlement/presentation/bet_setup_screen.dart';
 import 'package:travelen/features/settlement/presentation/games/ddakji_game.dart';
+import 'package:travelen/features/settlement/presentation/games/roulette_game.dart';
 import 'package:travelen/features/settlement/presentation/games/wave_race_game.dart';
 import 'package:travelen/features/trip/data/trip_repository.dart';
 import 'package:travelen/features/trip/domain/trip.dart';
@@ -89,6 +90,58 @@ void main() {
     expect(ranking, isNotNull);
     expect(ranking!.toSet(), _members.toSet());
     expect(find.text('도착!'), findsOneWidget);
+  });
+
+  group('roulette', () {
+    test('stops inside the chosen slice after the given spins', () {
+      final random = Random(11);
+      for (var i = 0; i < 2000; i++) {
+        final count = 2 + random.nextInt(11);
+        final index = random.nextInt(count);
+        final from = (random.nextDouble() - 0.5) * 40;
+        final stop = rouletteStop(
+          from: from,
+          index: index,
+          count: count,
+          spins: 5,
+          within: 0.15 + random.nextDouble() * 0.7,
+        );
+        expect(rouletteSegmentAt(stop, count), index);
+        expect(stop - from, inInclusiveRange(5 * 2 * pi, 6 * 2 * pi));
+      }
+    });
+
+    test('neighbouring slices never share a colour, even across the top', () {
+      for (var count = 2; count <= 24; count++) {
+        for (var i = 0; i < count; i++) {
+          expect(rouletteColor(i, count), isNot(rouletteColor((i + 1) % count, count)),
+              reason: '$count slices, $i and ${(i + 1) % count}');
+        }
+      }
+    });
+
+    testWidgets('the needle picks who loses', (tester) async {
+      Member? loser;
+      await tester.pumpWidget(
+        _host(
+          RouletteGame(
+            players: _members,
+            random: Random(7),
+            onLoser: (m) => loser = m,
+          ),
+        ),
+      );
+      expect(find.text('누가 걸릴까요?'), findsOneWidget);
+
+      await tester.tap(find.text('돌리기!'));
+      await tester.pump();
+      expect(find.text('두구두구…'), findsOneWidget);
+      for (var i = 0; i < 80 && loser == null; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      expect(loser, isNotNull);
+      expect(find.text('${loser!.name}님!'), findsOneWidget);
+    });
   });
 
   testWidgets('pick a treat, ride the waves, and the result goes into the trip', (

@@ -15,6 +15,7 @@ import '../domain/settlement.dart';
 import 'games/confetti.dart';
 import 'games/ddakji_game.dart';
 import 'games/game_icon.dart';
+import 'games/roulette_game.dart';
 import 'games/wave_race_game.dart';
 
 /// 내기 설정 화면에서 고른 것.
@@ -83,6 +84,7 @@ class _BetGameScreenState extends ConsumerState<BetGameScreen> {
     final background = switch (game) {
       BetGame.ddakji => const Color(0xFFFBF7F0),
       BetGame.wave => const Color(0xFFEFF9FF),
+      BetGame.roulette => const Color(0xFFF6F2FF),
     };
     final loser = _loser;
     return Scaffold(
@@ -112,6 +114,11 @@ class _BetGameScreenState extends ConsumerState<BetGameScreen> {
                   players: widget.args.players,
                   random: widget.random,
                   onFinish: (ranking) => _finish(ranking.last, ranking),
+                ),
+                BetGame.roulette => RouletteGame(
+                  players: widget.args.players,
+                  random: widget.random,
+                  onLoser: _finish,
                 ),
               },
             ),
@@ -209,7 +216,11 @@ class _ResultPanel extends ConsumerWidget {
                     right: -8,
                     bottom: -4,
                     child: Text(
-                      game == BetGame.ddakji ? '😱' : '🐡',
+                      switch (game) {
+                        BetGame.ddakji => '😱',
+                        BetGame.wave => '🐡',
+                        BetGame.roulette => '🎯',
+                      },
                       style: const TextStyle(fontSize: 30),
                     ),
                   ),

@@ -33,7 +33,7 @@ class _BetSetupScreenState extends ConsumerState<BetSetupScreen> {
   int _unit = 1000;
   String? _expenseId;
   Set<String> _playerIds = {};
-  BetGame _game = BetGame.ddakji;
+  BetGame _game = BetGame.values.first;
 
   void _seed(Trip trip, List<Member> members) {
     if (_seeded) return;
@@ -281,23 +281,14 @@ class _BetSetupScreenState extends ConsumerState<BetSetupScreen> {
           SectionCard(
             title: '어떤 게임으로?',
             children: [
-              IntrinsicHeight(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    for (final g in BetGame.values) ...[
-                      if (g != BetGame.values.first) const SizedBox(width: 10),
-                      Expanded(
-                        child: _GameCard(
-                          game: g,
-                          selected: _game == g,
-                          onTap: () => setState(() => _game = g),
-                        ),
-                      ),
-                    ],
-                  ],
+              for (final g in BetGame.values) ...[
+                if (g != BetGame.values.first) const SizedBox(height: 10),
+                _GameCard(
+                  game: g,
+                  selected: _game == g,
+                  onTap: () => setState(() => _game = g),
                 ),
-              ),
+              ],
               const SizedBox(height: 8),
             ],
           ),
@@ -515,31 +506,36 @@ class _GameCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         child: Padding(
           padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: Row(
             children: [
               AnimatedScale(
                 scale: selected ? 1.12 : 1,
                 duration: const Duration(milliseconds: 220),
                 curve: Curves.easeOutBack,
-                alignment: Alignment.centerLeft,
                 child: GameIcon(game, size: 40),
               ),
-              const SizedBox(height: 8),
-              Text(
-                game.label,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                game.howTo,
-                style: const TextStyle(
-                  fontSize: 13,
-                  color: AppColors.textSub,
-                  height: 1.4,
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      game.label,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      game.howTo,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: AppColors.textSub,
+                        height: 1.4,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
