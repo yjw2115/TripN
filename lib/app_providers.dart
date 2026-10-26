@@ -15,6 +15,8 @@ import 'features/expense/domain/expense.dart';
 import 'features/menu/data/menu_parser.dart';
 import 'features/menu/data/menu_repository.dart';
 import 'features/menu/domain/menu.dart';
+import 'features/notify/data/push_service.dart';
+import 'features/notify/data/trip_notice_sender.dart';
 import 'features/receipt/data/gemini_receipt_parser.dart';
 import 'features/receipt/data/receipt_image_service.dart';
 import 'features/receipt/data/receipt_parser.dart';
@@ -49,6 +51,21 @@ final exchangeRateRepositoryProvider = Provider<ExchangeRateRepository>((ref) {
   );
 });
 
+final pushServiceProvider = Provider<PushService>((ref) {
+  final service = PushService(ref.watch(tripRepositoryProvider));
+  ref.onDispose(service.dispose);
+  return service;
+});
+
+/// Firebase는 보낼 때 꺼낸다 (테스트에서 이 provider를 만들기만 해도 깨지지 않게).
+final tripNoticeSenderProvider = Provider<TripNoticeSender>(
+  (ref) => TripNoticeSender((name, data) async {
+    await FirebaseFunctions.instanceFor(region: 'asia-northeast3')
+        .httpsCallable(name)
+        .call<Object?>(data);
+  }),
+);
+
 /// 1단계는 익명 로그인으로 시작한다. 나중에 소셜 로그인을 붙이면 계정 연결로 이어진다.
 final currentUserProvider = FutureProvider<User>((ref) async {
   final auth = FirebaseAuth.instance;
@@ -64,6 +81,25 @@ final myTripsProvider = StreamProvider<List<Trip>>((ref) async* {
   final repo = ref.watch(tripRepositoryProvider);
   await repo.ensureTrip(user.uid);
   yield* repo.watchTrips(user.uid);
+});
+
+/// 앱을 쓰는 동행자가 있는 여행이면 알림 권한을 (아직 묻지 않았으면) 묻고,
+/// 허락돼 있으면 이 기기 토큰을 저장한다. 혼자 쓰는 동안에는 알릴 일이 없어서 묻지 않는다.
+final pushRegistrationProvider = Provider<void>((ref) {
+  final uid = ref.watch(currentUserProvider.select((u) => u.value?.uid));
+  final shared = ref.watch(currentTripProvider
+      .select((t) => (t.value?.memberUids.length ?? 0) > 1));
+  if (uid == null) return;
+  unawaited(ref
+      .read(pushServiceProvider)
+      .setUp(uid, ask: shared)
+      .catchError((Object e) => debugPrint('Push setup failed: $e')));
+});
+
+/// MY 탭의 내 이름과 받을 계좌, 알림 설정.
+final profileProvider = StreamProvider<Profile>((ref) async* {
+  final user = await ref.watch(currentUserProvider.future);
+  yield* ref.watch(tripRepositoryProvider).watchProfile(user.uid);
 });
 
 final selectedTripIdProvider = StreamProvider<String?>((ref) async* {

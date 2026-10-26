@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/theme/app_icons.dart';
 
 const _tabular = [FontFeature.tabularFigures()];
 
@@ -34,7 +35,7 @@ class CountStepper extends StatelessWidget {
       return IconButton.filledTonal(
         tooltip: '$name 하나 담기',
         onPressed: canAdd ? add : null,
-        icon: const Icon(Icons.add_rounded),
+        icon: const Icon(AppIcons.plus),
       );
     }
     return Container(
@@ -49,7 +50,7 @@ class CountStepper extends StatelessWidget {
             tooltip: '$name 하나 빼기',
             visualDensity: VisualDensity.compact,
             onPressed: () => onChanged(count - 1),
-            icon: const Icon(Icons.remove_rounded,
+            icon: const Icon(AppIcons.minus,
                 size: 20, color: AppColors.primaryDeep),
           ),
           Text('$count',
@@ -62,7 +63,7 @@ class CountStepper extends StatelessWidget {
             tooltip: '$name 하나 더',
             visualDensity: VisualDensity.compact,
             onPressed: canAdd ? add : null,
-            icon: Icon(Icons.add_rounded,
+            icon: Icon(AppIcons.plus,
                 size: 20,
                 color: canAdd ? AppColors.primaryDeep : AppColors.textHint),
           ),

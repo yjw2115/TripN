@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'app_icons.dart';
+
 /// 노란 기가 도는 따뜻한 파스텔 초록(피스타치오)을 중심으로 한 색 팔레트.
 ///
 /// 파스텔 초록([primary]) 위에 흰 글자는 대비가 1.4:1밖에 안 돼서 읽기 어렵다.
@@ -40,9 +42,21 @@ ThemeData buildAppTheme() {
       error: AppColors.danger,
     ),
     scaffoldBackgroundColor: AppColors.background,
-    splashFactory: InkSparkle.splashFactory,
+    // 머티리얼 물결 대신, 누른 동안만 살짝 어두워진다.
+    splashFactory: NoSplash.splashFactory,
+    highlightColor: const Color(0x0F000000),
+    hoverColor: Colors.transparent,
+    // 안드로이드도 iOS처럼 옆으로 밀려 들어오고, 왼쪽 끝을 밀어 뒤로 간다.
+    pageTransitionsTheme: const PageTransitionsTheme(builders: {
+      TargetPlatform.android: CupertinoPageTransitionsBuilder(),
+      TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+    }),
   );
   return base.copyWith(
+    actionIconTheme: ActionIconThemeData(
+      backButtonIconBuilder: (_) => const Icon(AppIcons.chevronLeft, size: 24),
+      closeButtonIconBuilder: (_) => const Icon(AppIcons.close, size: 22),
+    ),
     textTheme: base.textTheme.apply(
       bodyColor: AppColors.text,
       displayColor: AppColors.text,
@@ -102,14 +116,11 @@ ThemeData buildAppTheme() {
     bottomSheetTheme: const BottomSheetThemeData(
       backgroundColor: AppColors.surface,
       showDragHandle: true,
+      dragHandleColor: AppColors.border,
+      dragHandleSize: Size(36, 5),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-    ),
-    snackBarTheme: SnackBarThemeData(
-      behavior: SnackBarBehavior.floating,
-      backgroundColor: AppColors.text,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     ),
   );
 }

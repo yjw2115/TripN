@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -20,6 +22,10 @@ import '../../trip/presentation/widgets/bank_picker.dart';
 import '../../trip/presentation/widgets/trip_widgets.dart';
 import '../domain/settlement.dart';
 import 'games/game_icon.dart';
+import '../../../core/theme/app_icons.dart';
+import '../../../core/ui/toast.dart';
+import '../../../core/ui/controls.dart';
+import '../../../core/ui/pressable.dart';
 
 String _won(int krw) => formatMoney(krw, Currency.krw);
 
@@ -49,7 +55,7 @@ class _SettlementScreenState extends ConsumerState<SettlementScreen> {
     if (trip == null || members == null || expenses == null) {
       return Scaffold(
         appBar: AppBar(title: const Text('정산')),
-        body: const Center(child: CircularProgressIndicator()),
+        body: const Center(child: AppSpinner()),
       );
     }
     final open = [for (final e in expenses) if (!e.isSettled) e];
@@ -230,17 +236,8 @@ class _SettlementScreenState extends ConsumerState<SettlementScreen> {
                   builder: (context) => FilledButton.icon(
                     onPressed: result.totalKrw == 0
                         ? null
-                        : () {
-                            final box =
-                                context.findRenderObject() as RenderBox?;
-                            SharePlus.instance.share(ShareParams(
-                              text: settlementMessage(trip.name, result),
-                              sharePositionOrigin: box == null
-                                  ? null
-                                  : box.localToGlobal(Offset.zero) & box.size,
-                            ));
-                          },
-                    icon: const Icon(Icons.ios_share_rounded, size: 20),
+                        : () => _request(context, trip, result),
+                    icon: const Icon(AppIcons.share, size: 20),
                     label: const Text('정산 요청 보내기'),
                   ),
                 ),
@@ -250,6 +247,21 @@ class _SettlementScreenState extends ConsumerState<SettlementScreen> {
         ),
       ),
     );
+  }
+
+  /// 메시지로 정산을 요청하고, 앱을 쓰는 동행자에게는 알림으로도 알린다.
+  /// 공유 창을 그냥 닫았으면 알리지 않는다.
+  Future<void> _request(
+      BuildContext buttonContext, Trip trip, Settlement result) async {
+    final sender = ref.read(tripNoticeSenderProvider);
+    final box = buttonContext.findRenderObject() as RenderBox?;
+    final shared = await SharePlus.instance.share(ShareParams(
+      text: settlementMessage(trip.name, result),
+      sharePositionOrigin:
+          box == null ? null : box.localToGlobal(Offset.zero) & box.size,
+    ));
+    if (shared.status == ShareResultStatus.dismissed) return;
+    unawaited(sender.settleRequest(trip.id, result.transfers));
   }
 
   /// 이번에 정산할 지출을 고른다. 정산 전인 지출을 모두 고르면 "모두"로 돌아간다.
@@ -285,9 +297,9 @@ class _SettlementScreenState extends ConsumerState<SettlementScreen> {
           if (result.bet != null)
             ref.read(tripRepositoryProvider).setSettlementBet(trip.id, null),
         ]));
+    unawaited(ref.read(tripNoticeSenderProvider).settled(trip.id, count));
     setState(() => _only = null);
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text('지출 $count건을 정산했어요')));
+    showToast(context, '지출 $count건을 정산했어요', kind: ToastKind.success);
     Navigator.of(context).maybePop();
   }
 
@@ -297,8 +309,27 @@ class _SettlementScreenState extends ConsumerState<SettlementScreen> {
       (context) => _SettledSheet(
         expenses: settled,
         onUndo: (batch) => _undoSettled(tripId, batch),
+        onDelete: (batch) => _deleteSettled(tripId, batch),
       ),
     );
+  }
+
+  /// 정산을 마친 지출 묶음을 지운다. 지출 목록에서도 사라지고 되돌릴 수 없다.
+  Future<void> _deleteSettled(String tripId, List<Expense> batch) async {
+    final confirmed = await confirmDialog(
+      context,
+      title: '정산 내역을 지울까요?',
+      body: '정산을 마친 지출 ${batch.length}건이 지출 목록에서도 사라지고 되돌릴 수 없어요. '
+          '동행자 모두에게서 함께 지워져요.',
+      confirmLabel: '지우기',
+      destructive: true,
+    );
+    if (!confirmed || !mounted) return;
+    reportWriteErrors(
+        context,
+        ref.read(expenseRepositoryProvider)
+            .deleteExpenses(tripId, [for (final e in batch) e.id]));
+    showToast(context, '정산 내역 ${batch.length}건을 지웠어요', kind: ToastKind.success);
   }
 
   /// 한 번에 정산한 지출을 다시 정산할 지출로 돌린다.
@@ -319,8 +350,7 @@ class _SettlementScreenState extends ConsumerState<SettlementScreen> {
   Future<void> _playBet(BuildContext context) async {
     final applied = await context.push<bool>('/settlement/bet');
     if (applied == true && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('게임 결과를 정산에 반영했어요')));
+      showToast(context, '게임 결과를 정산에 반영했어요', kind: ToastKind.success);
     }
   }
 
@@ -344,8 +374,7 @@ class _SettlementScreenState extends ConsumerState<SettlementScreen> {
     void copy(BuildContext sheetContext, String text, String done) {
       Clipboard.setData(ClipboardData(text: text));
       Navigator.pop(sheetContext);
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(done)));
+      showToast(context, done, kind: ToastKind.success);
     }
 
     await showModalBottomSheet<void>(
@@ -372,7 +401,7 @@ class _SettlementScreenState extends ConsumerState<SettlementScreen> {
               ),
             ),
             ListTile(
-              leading: const Icon(Icons.copy_rounded),
+              leading: const Icon(AppIcons.copy),
               title: const Text('금액 복사'),
               subtitle: Text('${t.amount}'),
               onTap: () => copy(sheetContext, '${t.amount}', '금액을 복사했어요'),
@@ -387,7 +416,7 @@ class _SettlementScreenState extends ConsumerState<SettlementScreen> {
               )
             else
               ListTile(
-                leading: const Icon(Icons.add_card_outlined),
+                leading: const Icon(AppIcons.bank),
                 title: Text('${t.to.name}님 계좌 등록'),
                 subtitle: const Text('등록하면 보낼 사람이 바로 복사할 수 있어요'),
                 onTap: () {
@@ -450,7 +479,7 @@ class _BetCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                const Icon(Icons.chevron_right_rounded,
+                const Icon(AppIcons.chevronRight,
                     color: AppColors.textHint),
               ],
             ),
@@ -531,12 +560,12 @@ class _BetCard extends StatelessWidget {
               TextButton.icon(
                 onPressed: onReset,
                 style: TextButton.styleFrom(foregroundColor: AppColors.textSub),
-                icon: const Icon(Icons.undo_rounded, size: 18),
+                icon: const Icon(AppIcons.undo, size: 18),
                 label: Text(applied != null ? '원래 정산으로' : '내기 지우기'),
               ),
               TextButton.icon(
                 onPressed: onPlay,
-                icon: const Icon(Icons.replay_rounded, size: 18),
+                icon: const Icon(AppIcons.retry, size: 18),
                 label: const Text('다시 하기'),
               ),
             ],
@@ -547,7 +576,7 @@ class _BetCard extends StatelessWidget {
   }
 }
 
-/// 미리 정산한 지출이 있다고 알리고, 눌러서 보거나 되돌린다.
+/// 미리 정산한 지출이 있다고 알리고, 눌러서 정산 내역을 보거나 되돌리거나 지운다.
 class _SettledLine extends StatelessWidget {
   const _SettledLine({required this.count, required this.onTap});
 
@@ -563,7 +592,7 @@ class _SettledLine extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 4),
         child: Row(
           children: [
-            const Icon(Icons.check_circle_outline_rounded,
+            const Icon(AppIcons.checkCircleLine,
                 size: 18, color: AppColors.textHint),
             const SizedBox(width: 6),
             Expanded(
@@ -571,12 +600,12 @@ class _SettledLine extends StatelessWidget {
                   style:
                       const TextStyle(fontSize: 14, color: AppColors.textSub)),
             ),
-            const Text('보기',
+            const Text('정산 내역',
                 style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
                     color: AppColors.primaryDeep)),
-            const Icon(Icons.chevron_right_rounded,
+            const Icon(AppIcons.chevronRight,
                 size: 20, color: AppColors.primaryDeep),
           ],
         ),
@@ -620,23 +649,18 @@ class _ExpensePickerSheetState extends State<_ExpensePickerSheet> {
           : () => Navigator.pop(context, {..._picked}),
       child: Column(
         children: [
-          CheckboxListTile(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('모두',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-            value: all,
+          CheckRow(
+            title: const Text('모두'),
+            checked: all,
             onChanged: (_) => setState(() => all
                 ? _picked.clear()
                 : _picked.addAll(rated.map((e) => e.id))),
           ),
           for (final e in widget.expenses)
-            CheckboxListTile(
-              contentPadding: EdgeInsets.zero,
-              secondary: CategoryBadge(e.category, size: 36),
-              title: Text(e.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 15)),
+            CheckRow(
+              leading: CategoryBadge(e.category, size: 36),
+              titleStyle: const TextStyle(fontSize: 15, color: AppColors.text),
+              title: Text(e.title, maxLines: 1, overflow: TextOverflow.ellipsis),
               subtitle: Text(
                   [
                     DateFormat('M월 d일', 'ko').format(e.paidAt),
@@ -644,11 +668,11 @@ class _ExpensePickerSheetState extends State<_ExpensePickerSheet> {
                   ].join(' · '),
                   style:
                       const TextStyle(fontSize: 13, color: AppColors.textHint)),
-              value: _picked.contains(e.id),
+              checked: _picked.contains(e.id),
               onChanged: e.totalKrw == null
                   ? null
-                  : (on) => setState(() =>
-                      on == true ? _picked.add(e.id) : _picked.remove(e.id)),
+                  : (on) => setState(
+                      () => on ? _picked.add(e.id) : _picked.remove(e.id)),
             ),
         ],
       ),
@@ -656,12 +680,14 @@ class _ExpensePickerSheetState extends State<_ExpensePickerSheet> {
   }
 }
 
-/// 미리 정산한 지출을 정산한 때별로 묶어 보여주고, 묶음째 되돌릴 수 있다.
+/// 정산 내역: 미리 정산한 지출을 정산한 때별로 묶어 보여주고, 묶음째 되돌리거나 지운다.
 class _SettledSheet extends StatelessWidget {
-  const _SettledSheet({required this.expenses, required this.onUndo});
+  const _SettledSheet(
+      {required this.expenses, required this.onUndo, required this.onDelete});
 
   final List<Expense> expenses;
   final ValueChanged<List<Expense>> onUndo;
+  final ValueChanged<List<Expense>> onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -669,7 +695,7 @@ class _SettledSheet extends StatelessWidget {
         .entries
         .sorted((a, b) => b.key.compareTo(a.key));
     return SheetScaffold(
-      title: '미리 정산한 지출',
+      title: '정산 내역',
       primaryLabel: '닫기',
       onPrimary: () => Navigator.pop(context),
       child: Column(
@@ -694,13 +720,24 @@ class _SettledSheet extends StatelessWidget {
                     ],
                   ),
                 ),
-                TextButton.icon(
-                  onPressed: () {
+                _SmallAction(
+                  icon: AppIcons.undo,
+                  label: '되돌리기',
+                  color: AppColors.primaryDeep,
+                  onTap: () {
                     Navigator.pop(context);
                     onUndo(batch.value);
                   },
-                  icon: const Icon(Icons.undo_rounded, size: 18),
-                  label: const Text('되돌리기'),
+                ),
+                const SizedBox(width: 6),
+                _SmallAction(
+                  icon: AppIcons.trash,
+                  label: '삭제',
+                  color: AppColors.danger,
+                  onTap: () {
+                    Navigator.pop(context);
+                    onDelete(batch.value);
+                  },
                 ),
               ],
             ),
@@ -735,7 +772,46 @@ class _SettledSheet extends StatelessWidget {
   }
 }
 
-/// 현지 화폐로도 볼 통화를 드롭다운으로 고른다. 외화를 여러 개 썼을 때 바꿀 수 있다.
+/// 정산 내역 묶음 옆의 작은 버튼 (되돌리기·삭제).
+class _SmallAction extends StatelessWidget {
+  const _SmallAction(
+      {required this.icon,
+      required this.label,
+      required this.color,
+      required this.onTap});
+
+  final IconData icon;
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Pressable(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(10, 7, 12, 7),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 16, color: color),
+            const SizedBox(width: 4),
+            Text(label,
+                style: TextStyle(
+                    fontSize: 13, fontWeight: FontWeight.w700, color: color)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 현지 화폐로도 볼 통화를 고른다. 외화를 여러 개 썼을 때 바꿀 수 있다.
+/// 누르면 시트에서 고른다 (머티리얼 드롭다운 대신).
 class _LocalCurrencyPicker extends StatelessWidget {
   const _LocalCurrencyPicker(
       {required this.options, required this.selected, required this.onSelected});
@@ -744,56 +820,93 @@ class _LocalCurrencyPicker extends StatelessWidget {
   final LocalCurrency? selected;
   final ValueChanged<String> onSelected;
 
+  Future<void> _pick(BuildContext context) async {
+    final current = selected?.currency.code ?? Currency.krw.code;
+    final choices = [
+      for (final o in options)
+        (o.currency, '${o.currency.nameKo} ${o.currency.code}'),
+      (Currency.krw, '원화만'),
+    ];
+    final picked = await showAppSheet<String>(
+      context,
+      (context) => SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(24, 0, 24, 8),
+              child: Text('함께 볼 화폐',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
+            ),
+            for (final (c, label) in choices)
+              Pressable(
+                scale: 0.98,
+                onTap: () => Navigator.pop(context, c.code),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 14, 24, 14),
+                  child: Row(
+                    children: [
+                      if (c.flag.isNotEmpty) ...[
+                        Text(c.flag, style: const TextStyle(fontSize: 20)),
+                        const SizedBox(width: 12),
+                      ],
+                      Expanded(
+                        child: Text(label,
+                            style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.text)),
+                      ),
+                      if (c.code == current)
+                        const Icon(AppIcons.check,
+                            size: 20, color: AppColors.primaryDeep),
+                    ],
+                  ),
+                ),
+              ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    if (picked != null) onSelected(picked);
+  }
+
   @override
   Widget build(BuildContext context) {
-    DropdownMenuItem<String> item(Currency c, String label) =>
-        DropdownMenuItem(
-          value: c.code,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (c.flag.isNotEmpty) ...[
-                Text(c.flag, style: const TextStyle(fontSize: 18)),
-                const SizedBox(width: 8),
-              ],
-              Text(label,
-                  style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.text)),
+    final currency = selected?.currency ?? Currency.krw;
+    final label = selected == null
+        ? '원화만'
+        : '${currency.nameKo} ${currency.code}';
+    return Pressable(
+      scale: 0.98,
+      onTap: () => _pick(context),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(20, 16, 16, 16),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(
+          children: [
+            const Text('함께 볼 화폐',
+                style: TextStyle(fontSize: 14, color: AppColors.textSub)),
+            const Spacer(),
+            if (selected != null && currency.flag.isNotEmpty) ...[
+              Text(currency.flag, style: const TextStyle(fontSize: 18)),
+              const SizedBox(width: 8),
             ],
-          ),
-        );
-
-    return Container(
-      padding: const EdgeInsets.only(left: 20, right: 12),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        children: [
-          const Text('함께 볼 화폐',
-              style: TextStyle(fontSize: 14, color: AppColors.textSub)),
-          const Spacer(),
-          DropdownButtonHideUnderline(
-            child: DropdownButton<String>(
-              value: selected?.currency.code ?? Currency.krw.code,
-              borderRadius: BorderRadius.circular(16),
-              dropdownColor: AppColors.surface,
-              icon: const Icon(Icons.expand_more_rounded,
-                  color: AppColors.textSub),
-              items: [
-                for (final o in options)
-                  item(o.currency, '${o.currency.nameKo} ${o.currency.code}'),
-                item(Currency.krw, '원화만'),
-              ],
-              onChanged: (code) {
-                if (code != null) onSelected(code);
-              },
-            ),
-          ),
-        ],
+            Text(label,
+                style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.text)),
+            const SizedBox(width: 6),
+            const Icon(AppIcons.chevronDown, size: 18, color: AppColors.textSub),
+          ],
+        ),
       ),
     );
   }
@@ -821,7 +934,7 @@ class _TransferRow extends StatelessWidget {
             MemberAvatar(transfer.from, size: 36),
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 6),
-              child: Icon(Icons.arrow_forward_rounded,
+              child: Icon(AppIcons.arrowRight,
                   size: 18, color: AppColors.textHint),
             ),
             MemberAvatar(transfer.to, size: 36),
@@ -845,7 +958,7 @@ class _TransferRow extends StatelessWidget {
                           fontSize: 13, color: AppColors.textHint)),
               ],
             ),
-            const Icon(Icons.chevron_right_rounded,
+            const Icon(AppIcons.chevronRight,
                 size: 20, color: AppColors.textHint),
           ],
         ),

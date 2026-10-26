@@ -19,6 +19,10 @@ import '../domain/receipt_validator.dart';
 import 'item_split_screen.dart';
 import 'widgets/category_badge.dart';
 import 'widgets/edit_sheets.dart';
+import '../../../core/theme/app_icons.dart';
+import '../../../core/ui/toast.dart';
+import '../../expense/presentation/expense_actions.dart';
+import '../../../core/ui/controls.dart';
 
 /// 확인 화면으로 넘길 값.
 class ReviewArgs {
@@ -52,7 +56,7 @@ class ReviewArgs {
   /// 저장된 지출에 고정해 둔 환율.
   final FixedRate? rate;
 
-  /// 'menu'면 메뉴판에서 고른 주문이다 (영수증 없이 정산).
+  /// 'menu'면 메뉴판에서 고른 주문, 'manual'이면 영수증 없이 직접 적은 지출이다.
   final String source;
 
   /// 미리 정산을 마친 지출이다. 고쳐도 정산에는 다시 들어가지 않는다.
@@ -98,19 +102,19 @@ class _ReceiptReviewScreenState extends ConsumerState<ReceiptReviewScreen> {
   }
 
   Future<void> _editDate() async {
-    final current = _receipt.paidAt ?? DateTime.now();
-    final date = await showDatePicker(
-      context: context,
-      initialDate: current,
-      firstDate: DateTime(2000),
-      lastDate: DateTime.now().add(const Duration(days: 365)),
-    );
-    if (date == null || !mounted) return;
-    final time = await showTimePicker(
-        context: context, initialTime: TimeOfDay.fromDateTime(current));
-    _update(_receipt.copyWith(
-        paidAt: DateTime(date.year, date.month, date.day,
-            time?.hour ?? current.hour, time?.minute ?? current.minute)));
+    final picked = await showDateTimeSheet(context,
+        title: '언제 썼나요?', initial: _receipt.paidAt ?? DateTime.now());
+    if (picked != null) _update(_receipt.copyWith(paidAt: picked));
+  }
+
+  /// 저장된 지출을 지운다 (수정할 때만). 지우면 목록으로 돌아간다.
+  Future<void> _delete(String expenseId) async {
+    final saved = widget.args.receipt;
+    final deleted = await confirmDeleteExpense(context, ref,
+        expenseId: expenseId,
+        label: '${saved.merchantName.isEmpty ? '이름 없는 지출' : saved.merchantName}'
+            ' · ${formatMoney(saved.totalMinor, saved.currency)}');
+    if (deleted && mounted) context.pop();
   }
 
   Future<void> _editCategory() async {
@@ -125,11 +129,12 @@ class _ReceiptReviewScreenState extends ConsumerState<ReceiptReviewScreen> {
           runSpacing: 8,
           children: [
             for (final c in ExpenseCategory.values)
-              ChoiceChip(
-                avatar: Icon(c.icon, size: 18, color: c.color),
-                label: Text(c.label),
+              AppChip(
+                icon: c.icon,
+                iconColor: c.color,
+                label: c.label,
                 selected: c == _receipt.category,
-                onSelected: (_) => Navigator.pop(context, c),
+                onTap: () => Navigator.pop(context, c),
               ),
           ],
         ),
@@ -152,7 +157,7 @@ class _ReceiptReviewScreenState extends ConsumerState<ReceiptReviewScreen> {
               ListTile(
                 title: Text('${c.nameKo} · ${c.code}'),
                 trailing: c == _currency
-                    ? const Icon(Icons.check_rounded, color: AppColors.primaryDeep)
+                    ? const Icon(AppIcons.check, color: AppColors.primaryDeep)
                     : Text(c.symbol,
                         style: const TextStyle(color: AppColors.textHint)),
                 onTap: () => Navigator.pop(context, c),
@@ -270,7 +275,7 @@ class _ReceiptReviewScreenState extends ConsumerState<ReceiptReviewScreen> {
                           style: const TextStyle(
                               fontSize: 16, fontWeight: FontWeight.w600)),
                       trailing: m.id == current?.id
-                          ? const Icon(Icons.check_rounded,
+                          ? const Icon(AppIcons.check,
                               color: AppColors.primaryDeep)
                           : null,
                       onTap: () => Navigator.pop(context, m.id),
@@ -381,15 +386,14 @@ class _ReceiptReviewScreenState extends ConsumerState<ReceiptReviewScreen> {
             source: widget.args.source,
           );
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('지출을 저장했어요')));
+      showToast(context, '지출을 저장했어요', kind: ToastKind.success);
       context.go('/');
     } catch (e) {
       debugPrint('Save failed: $e');
       if (!mounted) return;
       setState(() => _saving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('저장하지 못했어요. 잠시 후 다시 시도해 주세요.')));
+      showToast(context, '저장하지 못했어요. 잠시 후 다시 시도해 주세요.',
+          kind: ToastKind.error);
     }
   }
 
@@ -411,16 +415,25 @@ class _ReceiptReviewScreenState extends ConsumerState<ReceiptReviewScreen> {
       appBar: AppBar(
         title: Text(args.expenseId != null
             ? '지출 수정'
-            : args.source == 'menu'
-                ? '주문 확인'
-                : '영수증 확인'),
+            : switch (args.source) {
+                'menu' => '주문 확인',
+                'manual' => '직접 입력',
+                _ => '영수증 확인',
+              }),
         actions: [
           if (args.imagePaths.isNotEmpty)
             IconButton(
               tooltip: '사진 보기',
               onPressed: _openPhotos,
-              icon: const Icon(Icons.image_outlined),
+              icon: const Icon(AppIcons.image),
             ),
+          if (args.expenseId case final id?)
+            IconButton(
+              tooltip: '지출 삭제',
+              onPressed: _saving ? null : () => _delete(id),
+              icon: const Icon(AppIcons.trash, color: AppColors.danger),
+            ),
+          const SizedBox(width: 4),
         ],
       ),
       body: ListView(
@@ -479,7 +492,7 @@ class _ReceiptReviewScreenState extends ConsumerState<ReceiptReviewScreen> {
             title: '품목 ${_receipt.items.length}개',
             trailing: TextButton.icon(
               onPressed: () => _editItem(_newItem(), isNew: true),
-              icon: const Icon(Icons.add_rounded, size: 18),
+              icon: const Icon(AppIcons.plus, size: 18),
               label: const Text('추가'),
             ),
             children: [
@@ -516,13 +529,11 @@ class _ReceiptReviewScreenState extends ConsumerState<ReceiptReviewScreen> {
                 onTap: () => _editCharge('세금', _receipt.taxMinor,
                     (v) => _receipt.copyWith(taxMinor: v)),
               ),
-              SwitchListTile.adaptive(
-                contentPadding: EdgeInsets.zero,
-                dense: true,
-                title: const Text('세금이 가격에 포함돼 있어요',
-                    style: TextStyle(fontSize: 14, color: AppColors.textSub)),
+              SwitchRow(
+                title: '세금이 가격에 포함돼 있어요',
+                titleStyle:
+                    const TextStyle(fontSize: 14, color: AppColors.textSub),
                 value: _receipt.taxIncluded,
-                activeTrackColor: AppColors.primary,
                 onChanged: (v) => _update(_receipt.copyWith(taxIncluded: v)),
               ),
               _ChargeRow(
@@ -560,8 +571,7 @@ class _ReceiptReviewScreenState extends ConsumerState<ReceiptReviewScreen> {
                 ? const SizedBox(
                     width: 22,
                     height: 22,
-                    child: CircularProgressIndicator(
-                        strokeWidth: 2.5, color: AppColors.onPrimary))
+                    child: AppSpinner(radius: 9, color: AppColors.onPrimary))
                 : Text(_receipt.totalMinor <= 0
                     ? '총 결제 금액을 입력해 주세요'
                     : '${_money(_receipt.totalMinor)} 저장하기'),
@@ -714,12 +724,12 @@ class _HeaderCard extends StatelessWidget {
           runSpacing: 8,
           children: [
             _Pill(
-              icon: Icons.payments_outlined,
+              icon: AppIcons.money,
               label: '${receipt.currency.nameKo} ${receipt.currency.code}',
               onTap: onCurrency,
             ),
             _Pill(
-              icon: Icons.schedule_rounded,
+              icon: AppIcons.clock,
               label: paidAt == null
                   ? '날짜 입력'
                   : DateFormat('M월 d일 HH:mm', 'ko').format(paidAt),
@@ -727,13 +737,13 @@ class _HeaderCard extends StatelessWidget {
             ),
             if (payerName != null)
               _Pill(
-                icon: Icons.person_outline_rounded,
+                icon: AppIcons.user,
                 label: '$payerName 결제',
                 onTap: onPayer,
               ),
             if (togetherLabel != null)
               _Pill(
-                icon: Icons.group_outlined,
+                icon: AppIcons.users,
                 label: togetherLabel!,
                 onTap: onTogether,
               ),
@@ -773,23 +783,21 @@ class _TogetherSheetState extends State<_TogetherSheet> {
               ]),
       child: Column(
         children: [
-          CheckboxListTile(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('모두',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-            value: all,
+          CheckRow(
+            title: const Text('모두'),
+            checked: all,
             onChanged: (_) => setState(() => all
                 ? _picked.clear()
                 : _picked.addAll(widget.members.map((m) => m.id))),
           ),
           for (final m in widget.members)
-            CheckboxListTile(
-              contentPadding: EdgeInsets.zero,
-              secondary: MemberAvatar(m, size: 36),
-              title: Text(m.name, style: const TextStyle(fontSize: 16)),
-              value: _picked.contains(m.id),
+            CheckRow(
+              leading: MemberAvatar(m, size: 36),
+              titleStyle: const TextStyle(fontSize: 16, color: AppColors.text),
+              title: Text(m.name),
+              checked: _picked.contains(m.id),
               onChanged: (on) => setState(
-                  () => on == true ? _picked.add(m.id) : _picked.remove(m.id)),
+                  () => on ? _picked.add(m.id) : _picked.remove(m.id)),
             ),
         ],
       ),
@@ -839,7 +847,7 @@ class _RateLine extends StatelessWidget {
               ),
             ),
             if (onTap != null)
-              const Icon(Icons.chevron_right_rounded,
+              const Icon(AppIcons.chevronRight,
                   size: 20, color: AppColors.textHint),
           ],
         ),
@@ -887,20 +895,20 @@ class _Banner extends StatelessWidget {
   const _Banner.warning({required this.title, required this.body})
       : _color = AppColors.warning,
         _background = AppColors.warningLight,
-        _icon = Icons.error_outline_rounded,
+        _icon = AppIcons.warning,
         actions = const [];
 
   const _Banner.success({required this.title})
       : body = null,
         _color = AppColors.success,
         _background = AppColors.successLight,
-        _icon = Icons.check_circle_rounded,
+        _icon = AppIcons.checkCircle,
         actions = const [];
 
   const _Banner.info({this.title, required this.body})
       : _color = AppColors.textSub,
         _background = AppColors.surface,
-        _icon = Icons.info_outline_rounded,
+        _icon = AppIcons.info,
         actions = const [];
 
   const _Banner.mismatch({
@@ -909,7 +917,7 @@ class _Banner extends StatelessWidget {
     required this.actions,
   })  : _color = AppColors.warning,
         _background = AppColors.warningLight,
-        _icon = Icons.error_outline_rounded;
+        _icon = AppIcons.warning;
 
   final String? title;
   final String? body;
@@ -1075,7 +1083,7 @@ class _ItemRow extends StatelessWidget {
                       padding: const EdgeInsets.only(top: 2),
                       child: Row(
                         children: [
-                          const Icon(Icons.person_outline_rounded,
+                          const Icon(AppIcons.user,
                               size: 14, color: AppColors.primaryDeep),
                           const SizedBox(width: 2),
                           Flexible(
@@ -1139,7 +1147,7 @@ class _SplitEntry extends StatelessWidget {
             padding: EdgeInsets.fromLTRB(14, 12, 10, 12),
             child: Row(
               children: [
-                Icon(Icons.shopping_bag_outlined,
+                Icon(AppIcons.bag,
                     size: 22, color: AppColors.primaryDeep),
                 SizedBox(width: 10),
                 Expanded(
@@ -1157,7 +1165,7 @@ class _SplitEntry extends StatelessWidget {
                     ],
                   ),
                 ),
-                Icon(Icons.chevron_right_rounded,
+                Icon(AppIcons.chevronRight,
                     size: 20, color: AppColors.primaryDeep),
               ],
             ),
@@ -1204,7 +1212,7 @@ class _ChargeRow extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 4),
-            const Icon(Icons.chevron_right_rounded,
+            const Icon(AppIcons.chevronRight,
                 size: 20, color: AppColors.textHint),
           ],
         ),

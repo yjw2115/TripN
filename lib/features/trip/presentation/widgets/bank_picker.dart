@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../receipt/presentation/widgets/edit_sheets.dart';
 import '../../domain/bank.dart';
+import '../../../../core/theme/app_icons.dart';
 
 /// 은행 아이콘. 아이콘이 없는 은행이나 직접 적은 은행은 이름 첫 글자로 그린다.
 class BankIcon extends StatelessWidget {
@@ -105,7 +106,7 @@ class _BankPicker extends StatelessWidget {
                   icon: const SizedBox(
                     width: 36,
                     height: 36,
-                    child: Icon(Icons.edit_outlined, color: AppColors.textSub),
+                    child: Icon(AppIcons.edit, color: AppColors.textSub),
                   ),
                   selected: typedBefore,
                   onTap: () => _typeName(context, typedBefore),

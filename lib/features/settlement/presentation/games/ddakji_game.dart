@@ -7,6 +7,7 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../trip/domain/trip.dart';
 import '../../../trip/presentation/widgets/trip_widgets.dart';
 import 'ddakji_painter.dart';
+import '../../../../core/ui/controls.dart';
 
 /// 딱지 뒤집기: 딱지 하나의 뒷면만 빨간색이다. 차례대로 한 장씩 뒤집고, 빨간 딱지를 뒤집은 사람이 걸린다.
 ///
@@ -162,11 +163,10 @@ class _DdakjiGameState extends State<DdakjiGame>
                       for (final count in _counts)
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 3),
-                          child: ChoiceChip(
-                            label: Text('$count'),
+                          child: AppChip(
+                            label: '$count',
                             selected: _count == count,
-                            showCheckmark: false,
-                            onSelected: (_) => setState(() => _deal(count)),
+                            onTap: () => setState(() => _deal(count)),
                           ),
                         ),
                     ],

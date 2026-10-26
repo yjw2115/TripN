@@ -2,12 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:go_router/go_router.dart';
 
+import 'app_shell.dart';
 import 'core/theme/app_theme.dart';
 import 'features/expense/presentation/home_screen.dart';
 import 'features/menu/domain/menu.dart';
 import 'features/menu/presentation/menu_analyze_screen.dart';
 import 'features/menu/presentation/menu_screen.dart';
 import 'features/menu/presentation/menus_screen.dart';
+import 'features/my/presentation/my_screen.dart';
+import 'features/notify/presentation/notification_settings_screen.dart';
 import 'features/receipt/presentation/receipt_analyze_screen.dart';
 import 'features/receipt/presentation/receipt_review_screen.dart';
 import 'features/settlement/presentation/bet_game_screen.dart';
@@ -18,7 +21,18 @@ import 'features/trip/presentation/trip_screen.dart';
 
 final _router = GoRouter(
   routes: [
-    GoRoute(path: '/', builder: (context, state) => const HomeScreen()),
+    // 아래 플로팅 바가 있는 탭 화면. 나머지 화면은 셸 밖이라 열리면 바를 덮는다.
+    StatefulShellRoute.indexedStack(
+      builder: (context, state, shell) => AppShell(shell: shell),
+      branches: [
+        StatefulShellBranch(routes: [
+          GoRoute(path: '/', builder: (context, state) => const HomeScreen()),
+        ]),
+        StatefulShellBranch(routes: [
+          GoRoute(path: '/my', builder: (context, state) => const MyScreen()),
+        ]),
+      ],
+    ),
     GoRoute(
       path: '/analyze',
       builder: (context, state) =>
@@ -30,6 +44,9 @@ final _router = GoRouter(
           ReceiptReviewScreen(args: state.extra! as ReviewArgs),
     ),
     GoRoute(path: '/trip', builder: (context, state) => const TripScreen()),
+    GoRoute(
+        path: '/notifications',
+        builder: (context, state) => const NotificationSettingsScreen()),
     GoRoute(path: '/menus', builder: (context, state) => const MenusScreen()),
     GoRoute(
       path: '/menu-analyze',

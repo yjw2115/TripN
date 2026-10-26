@@ -9,6 +9,7 @@ import '../../../../core/money/exchange_rate.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../receipt/presentation/widgets/edit_sheets.dart';
 import 'trip_widgets.dart';
+import '../../../../core/ui/toast.dart';
 
 /// "54.3" 같은 원화 입력을 읽는다. 천 단위 쉼표는 무시한다.
 double? parseKrwInput(String text) {
@@ -29,7 +30,8 @@ Future<void> editManualRate(
           : NumberFormat('0.##', 'en_US').format(current * units));
   final unitLabel =
       '${NumberFormat('#,##0', 'en_US').format(units)}${currency.nameKo}';
-  final krw = await showAppSheet<double>(
+  // krw가 null이면 지우기를 누른 것이다.
+  final result = await showAppSheet<({double? krw})>(
     context,
     (context) => ValueListenableBuilder<TextEditingValue>(
       valueListenable: controller,
@@ -38,7 +40,9 @@ Future<void> editManualRate(
         primaryLabel: '저장',
         onPrimary: parseKrwInput(value.text) == null
             ? null
-            : () => Navigator.pop(context, parseKrwInput(value.text)),
+            : () => Navigator.pop(context, (krw: parseKrwInput(value.text))),
+        secondaryLabel: current == null ? null : '지우기',
+        onSecondary: () => Navigator.pop(context, (krw: null)),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -76,11 +80,15 @@ Future<void> editManualRate(
       ),
     ),
   );
-  if (krw == null || !context.mounted) return;
+  if (result == null || !context.mounted) return;
+  final krw = result.krw;
+  final repo = ref.read(tripRepositoryProvider);
+  if (krw == null) {
+    reportWriteErrors(context, repo.deleteManualRate(trip.id, currency.code));
+    showToast(context, '${currency.nameKo} 환율을 지웠어요. 이미 저장한 지출은 그대로예요.',
+        kind: ToastKind.success);
+    return;
+  }
   reportWriteErrors(
-    context,
-    ref
-        .read(tripRepositoryProvider)
-        .setManualRate(trip.id, currency.code, krw / units),
-  );
+      context, repo.setManualRate(trip.id, currency.code, krw / units));
 }

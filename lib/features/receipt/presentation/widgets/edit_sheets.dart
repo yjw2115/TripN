@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -8,6 +9,7 @@ import '../../../trip/domain/trip.dart';
 import '../../../trip/presentation/widgets/trip_widgets.dart';
 import '../../domain/receipt.dart';
 import 'count_stepper.dart';
+import '../../../../core/ui/controls.dart';
 
 /// 바텀시트 공통 틀: 제목 + 내용 + 하단 버튼.
 class SheetScaffold extends StatelessWidget {
@@ -73,6 +75,33 @@ class SheetScaffold extends StatelessWidget {
       ),
     );
   }
+}
+
+/// 날짜와 시각을 한 번에 고른다 (머티리얼 달력·시계 대신 iOS식 휠).
+Future<DateTime?> showDateTimeSheet(BuildContext context,
+    {required String title, required DateTime initial}) {
+  final latest = DateTime.now().add(const Duration(days: 365));
+  final start = initial.isAfter(latest) ? latest : initial;
+  var picked = start;
+  return showAppSheet<DateTime>(
+    context,
+    (context) => SheetScaffold(
+      title: title,
+      primaryLabel: '확인',
+      onPrimary: () => Navigator.pop(context, picked),
+      child: SizedBox(
+        height: 216,
+        child: CupertinoDatePicker(
+          mode: CupertinoDatePickerMode.dateAndTime,
+          initialDateTime: start,
+          minimumDate: DateTime(2000),
+          maximumDate: latest,
+          use24hFormat: true,
+          onDateTimeChanged: (d) => picked = d,
+        ),
+      ),
+    ),
+  );
 }
 
 Future<T?> showAppSheet<T>(BuildContext context, WidgetBuilder builder) {
@@ -463,17 +492,18 @@ class _ItemSheetState extends State<_ItemSheet> {
                 spacing: 8,
                 runSpacing: 8,
                 children: [
-                  ChoiceChip(
-                    label: const Text('모두'),
+                  AppChip(
+                    label: '모두',
                     selected: _who.isEmpty,
-                    onSelected: (_) => setState(_who.clear),
+                    onTap: () => setState(_who.clear),
                   ),
                   for (final m in widget.together)
-                    FilterChip(
-                      label: Text(m.name),
+                    AppChip(
+                      label: m.name,
                       selected: _who.contains(m.id),
-                      onSelected: (on) => setState(
-                          () => on ? _who.add(m.id) : _who.remove(m.id)),
+                      onTap: () => setState(() => _who.contains(m.id)
+                          ? _who.remove(m.id)
+                          : _who.add(m.id)),
                     ),
                 ],
               ),

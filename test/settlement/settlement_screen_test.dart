@@ -9,6 +9,7 @@ import 'package:travelen/core/money/currency.dart';
 import 'package:travelen/core/money/exchange_rate.dart';
 import 'package:travelen/features/expense/data/expense_repository.dart';
 import 'package:travelen/features/expense/domain/expense.dart';
+import 'package:travelen/features/notify/data/trip_notice_sender.dart';
 import 'package:travelen/features/receipt/domain/receipt.dart';
 import 'package:travelen/features/settlement/domain/bet.dart';
 import 'package:travelen/features/settlement/domain/settlement.dart';
@@ -41,6 +42,9 @@ Expense _expense(String payer, int total, List<String> together,
       settledAt: settledAt,
     );
 
+/// 정산 요청·정산 완료 때 Functions로 보내려던 알림.
+final _notices = <Map<String, Object?>>[];
+
 final _expenses = [
   _expense('j', 90000, ['j', 'm', 's']),
   _expense('m', 30000, ['m', 's']),
@@ -66,6 +70,8 @@ Widget _app(
           tripRepositoryProvider.overrideWithValue(repository),
         if (expenseRepository != null)
           expenseRepositoryProvider.overrideWithValue(expenseRepository),
+        tripNoticeSenderProvider.overrideWithValue(
+            TripNoticeSender((_, data) async => _notices.add(data))),
       ],
       child: const MaterialApp(
         locale: Locale('ko'),
@@ -76,6 +82,8 @@ Widget _app(
     );
 
 void main() {
+  setUp(_notices.clear);
+
   testWidgets('shows who sends whom how much, and each balance',
       (tester) async {
     await tester.pumpWidget(_app());
@@ -266,12 +274,17 @@ void main() {
       await tester.tap(find.text('정산 완료'));
       await tester.pumpAndSettle();
       expect(find.text('지출 1건을 정산 완료로 할까요?'), findsOneWidget);
-      await tester.tap(find.widgetWithText(TextButton, '정산 완료'));
+      // 아래 버튼과 대화상자 버튼 중 위에 뜬 대화상자 쪽
+      await tester.tap(find.text('정산 완료').last);
       await tester.pumpAndSettle();
 
       expect(find.text('지출 1건을 정산했어요'), findsOneWidget);
       expect((await expenseDoc(db, 'e90000'))['settledAt'], isA<String>());
       expect((await expenseDoc(db, 'e30000')).containsKey('settledAt'), isFalse);
+      // 앱을 쓰는 동행자에게 정산을 마쳤다고 알린다.
+      expect(_notices, [
+        {'tripId': 't', 'type': 'settled', 'count': 1},
+      ]);
     });
 
     testWidgets('an applied bet is used up by the settlement it went into',
@@ -291,7 +304,8 @@ void main() {
       await tester.tap(find.text('정산 완료'));
       await tester.pumpAndSettle();
       expect(find.textContaining('게임 결과도 이번 정산에 넣고 지워요'), findsOneWidget);
-      await tester.tap(find.widgetWithText(TextButton, '정산 완료'));
+      // 아래 버튼과 대화상자 버튼 중 위에 뜬 대화상자 쪽
+      await tester.tap(find.text('정산 완료').last);
       await tester.pumpAndSettle();
 
       expect((await db.doc('trips/t').get()).data()!.containsKey('settlementBet'),
@@ -315,7 +329,7 @@ void main() {
 
       expect(find.text('90,000원'), findsOneWidget);
       expect(find.text('미리 정산한 지출 1건은 빠져 있어요'), findsOneWidget);
-      await tester.tap(find.text('보기'));
+      await tester.tap(find.text('정산 내역'));
       await tester.pumpAndSettle();
       expect(find.text('10월 24일 21:05 정산'), findsOneWidget);
 
@@ -325,6 +339,32 @@ void main() {
       await tester.tap(find.text('되돌리기'));
       await tester.pumpAndSettle();
       expect((await expenseDoc(db, 'e30000')).containsKey('settledAt'), isFalse);
+    });
+
+    testWidgets('a settled batch can be deleted from the history',
+        (tester) async {
+      final db = await seeded();
+      final at = DateTime(2026, 10, 24, 21, 5);
+      await db
+          .doc('trips/t/expenses/e30000')
+          .update({'settledAt': at.toIso8601String()});
+      await tester.pumpWidget(_app([
+        _expenses[0],
+        _expense('m', 30000, ['m', 's'], settledAt: at),
+      ], null, null, ExpenseRepository(db)));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('정산 내역'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('삭제'));
+      await tester.pumpAndSettle();
+      expect(find.text('정산 내역을 지울까요?'), findsOneWidget);
+      await tester.tap(find.text('지우기'));
+      await tester.pumpAndSettle();
+
+      expect((await db.doc('trips/t/expenses/e30000').get()).exists, isFalse);
+      expect((await db.doc('trips/t/expenses/e90000').get()).exists, isTrue);
+      expect(find.text('정산 내역 1건을 지웠어요'), findsOneWidget);
     });
   });
 

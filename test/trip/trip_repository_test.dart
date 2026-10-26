@@ -54,6 +54,48 @@ void main() {
     });
   });
 
+  group('profile', () {
+    const account =
+        BankAccount(bank: '카카오뱅크', number: '3333-01-1234567', holder: '지민');
+
+    test('keeps my name and account next to the selected trip', () async {
+      await repo.selectTrip('alice', 't1');
+      await repo.setProfileName('alice', '지민');
+      await repo.setProfileAccount('alice', account);
+
+      final profile = await repo.watchProfile('alice').first;
+      expect(profile.name, '지민');
+      expect(profile.account?.display, '카카오뱅크 3333-01-1234567 지민');
+      expect(await repo.watchSelectedTripId('alice').first, 't1');
+
+      await repo.setProfileAccount('alice', null);
+      expect((await repo.watchProfile('alice').first).account, isNull);
+    });
+
+    test('notifications start on, can be turned off per topic, and keep each device',
+        () async {
+      expect((await repo.watchProfile('alice').first).notifyExpense, isTrue);
+
+      await repo.setNotify('alice', NotifyTopic.expense, false);
+      await repo.addPushToken('alice', 'phone');
+      await repo.addPushToken('alice', 'phone');
+      await repo.addPushToken('alice', 'tablet');
+
+      final profile = await repo.watchProfile('alice').first;
+      expect(profile.notifyExpense, isFalse);
+      expect(profile.notifySettlement, isTrue);
+      expect((await data('users/alice'))['fcmTokens'], ['phone', 'tablet']);
+    });
+
+    test('a new trip starts with my account when one is given', () async {
+      final tripId = await repo.createTrip(
+          uid: 'alice', name: '도쿄', myName: '지민', myAccount: account);
+
+      final me = (await repo.watchMembers(tripId).first).single;
+      expect(me.account?.number, '3333-01-1234567');
+    });
+  });
+
   group('members', () {
     late String tripId;
 

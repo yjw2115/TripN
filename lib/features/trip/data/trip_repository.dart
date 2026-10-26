@@ -16,7 +16,9 @@ class InviteInfo {
 }
 
 /// Firestore 구조
-///   users/{uid}                         currentTripId
+///   users/{uid}                         currentTripId, name, account{bank,number,holder} (MY 탭),
+///                                       fcmTokens[], notify{expense, settlement} (알림),
+///                                       pushTest{ok, code, at} (알림 점검), seenScanGuide (첫 안내)
 ///   trips/{tripId}                      name, ownerId, memberUids, inviteCode, manualRates, createdAt,
 ///                                       settlementBet{game, stake, unit|expenseId, loserId, participantIds}
 ///   trips/{tripId}/members/{memberId}   name, uid(이름만 있는 동행자는 null), account{bank,number,holder},
@@ -84,11 +86,12 @@ class TripRepository {
     return true;
   }
 
-  /// 새 여행을 만들고 바로 고른다.
+  /// 새 여행을 만들고 바로 고른다. [myAccount]가 있으면 내 받을 계좌로 넣어 둔다.
   Future<String> createTrip({
     required String uid,
     required String name,
     required String myName,
+    BankAccount? myAccount,
   }) async {
     final ref = _trips.doc();
     final batch = _db.batch()
@@ -98,8 +101,10 @@ class TripRepository {
         'memberUids': [uid],
         'createdAt': FieldValue.serverTimestamp(),
       })
-      ..set(_members(ref.id).doc(uid),
-          _memberData(name: myName, uid: uid, createdBy: uid))
+      ..set(_members(ref.id).doc(uid), {
+        ..._memberData(name: myName, uid: uid, createdBy: uid),
+        if (myAccount != null) 'account': myAccount.toMap(),
+      })
       ..set(_users.doc(uid), {'currentTripId': ref.id}, SetOptions(merge: true));
     await batch.commit();
     return ref.id;
@@ -123,6 +128,29 @@ class TripRepository {
       .doc(uid)
       .set({'currentTripId': tripId}, SetOptions(merge: true));
 
+  Stream<Profile> watchProfile(String uid) =>
+      _users.doc(uid).snapshots().map((s) => Profile.fromMap(s.data()));
+
+  Future<void> setProfileName(String uid, String name) =>
+      _users.doc(uid).set({'name': name}, SetOptions(merge: true));
+
+  /// null이면 계좌를 지운다.
+  Future<void> setProfileAccount(String uid, BankAccount? account) =>
+      _users.doc(uid).set({'account': account?.toMap() ?? FieldValue.delete()},
+          SetOptions(merge: true));
+
+  /// 이 기기의 푸시 토큰. 기기마다 하나씩 쌓이고, 더 보낼 수 없게 된 토큰은 Functions가 지운다.
+  Future<void> addPushToken(String uid, String token) => _users.doc(uid).set({
+        'fcmTokens': FieldValue.arrayUnion([token]),
+      }, SetOptions(merge: true));
+
+  Future<void> markScanGuideSeen(String uid) =>
+      _users.doc(uid).set({'seenScanGuide': true}, SetOptions(merge: true));
+
+  Future<void> setNotify(String uid, NotifyTopic topic, bool on) => _users
+      .doc(uid)
+      .set({'notify': {topic.name: on}}, SetOptions(merge: true));
+
   /// 초대 문서에도 여행 이름이 있어서 같이 바꾼다.
   Future<void> renameTrip(Trip trip, String name) {
     final batch = _db.batch()..update(_trips.doc(trip.id), {'name': name});
@@ -134,6 +162,10 @@ class TripRepository {
   /// 동행자 모두 같은 값을 쓰도록 여행에 둔다.
   Future<void> setManualRate(String tripId, String currencyCode, double krwPerUnit) =>
       _trips.doc(tripId).update({'manualRates.$currencyCode': krwPerUnit});
+
+  /// 이미 저장한 지출의 환율은 그대로 두고, 앞으로 쓸 환율만 지운다.
+  Future<void> deleteManualRate(String tripId, String currencyCode) =>
+      _trips.doc(tripId).update({'manualRates.$currencyCode': FieldValue.delete()});
 
   /// 미니게임 결과를 정산에 반영한다. null이면 지워서 원래 정산으로 돌아간다.
   Future<void> setSettlementBet(String tripId, SettlementBet? bet) =>

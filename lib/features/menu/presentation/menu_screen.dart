@@ -13,6 +13,9 @@ import '../../receipt/presentation/receipt_review_screen.dart';
 import '../../receipt/presentation/widgets/edit_sheets.dart';
 import '../../trip/presentation/widgets/trip_widgets.dart';
 import '../domain/menu.dart';
+import '../../../core/theme/app_icons.dart';
+import '../../../core/ui/controls.dart';
+import 'menu_actions.dart';
 
 /// 메뉴 화면으로 넘길 값. 방금 찍은 메뉴판이면 저장이 끝나기 전에도 바로 보여준다.
 class MenuScreenArgs {
@@ -118,7 +121,7 @@ class _MenuScreenState extends ConsumerState<MenuScreen> {
         appBar: AppBar(),
         body: Center(
           child: menuAsync.isLoading
-              ? const CircularProgressIndicator()
+              ? const AppSpinner()
               : const Text('메뉴판을 찾지 못했어요',
                   style: TextStyle(color: AppColors.textHint)),
         ),
@@ -145,11 +148,23 @@ class _MenuScreenState extends ConsumerState<MenuScreen> {
                       overflow: TextOverflow.ellipsis),
                 ),
                 const SizedBox(width: 4),
-                const Icon(Icons.edit_outlined, size: 16, color: AppColors.textHint),
+                const Icon(AppIcons.edit, size: 16, color: AppColors.textHint),
               ],
             ),
           ),
         ),
+        actions: [
+          IconButton(
+            tooltip: '메뉴판 지우기',
+            icon: const Icon(AppIcons.trash, color: AppColors.danger),
+            onPressed: () async {
+              if (await confirmDeleteMenu(context, ref, menu) && context.mounted) {
+                context.pop();
+              }
+            },
+          ),
+          const SizedBox(width: 4),
+        ],
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
@@ -191,7 +206,7 @@ class _MenuScreenState extends ConsumerState<MenuScreen> {
           Center(
             child: TextButton.icon(
               onPressed: () => _editItem(menu, null),
-              icon: const Icon(Icons.add_rounded, size: 18),
+              icon: const Icon(AppIcons.plus, size: 18),
               label: const Text('메뉴판에 없는 메뉴 추가'),
             ),
           ),
@@ -223,7 +238,7 @@ class _MenuScreenState extends ConsumerState<MenuScreen> {
                         ),
                       ),
                       const Text('미리 보는 영수증'),
-                      const Icon(Icons.chevron_right_rounded),
+                      const Icon(AppIcons.chevronRight),
                     ],
                   ),
                 ),
@@ -280,7 +295,7 @@ class _ChargesBar extends StatelessWidget {
                   ],
                 ),
               ),
-              const Icon(Icons.tune_rounded, size: 20, color: AppColors.textHint),
+              const Icon(AppIcons.adjust, size: 20, color: AppColors.textHint),
             ],
           ),
         ),
@@ -308,7 +323,7 @@ class _WarningBanner extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(Icons.info_outline_rounded, size: 18, color: AppColors.warning),
+          const Icon(AppIcons.info, size: 18, color: AppColors.warning),
           const SizedBox(width: 8),
           Expanded(
             child: Text(text,
@@ -317,7 +332,7 @@ class _WarningBanner extends StatelessWidget {
           IconButton(
             tooltip: '닫기',
             visualDensity: VisualDensity.compact,
-            icon: const Icon(Icons.close_rounded, size: 18, color: AppColors.textHint),
+            icon: const Icon(AppIcons.close, size: 18, color: AppColors.textHint),
             onPressed: onClose,
           ),
         ],
@@ -419,7 +434,7 @@ class _Stepper extends StatelessWidget {
           HapticFeedback.selectionClick();
           onChanged(1);
         },
-        icon: const Icon(Icons.add_rounded),
+        icon: const Icon(AppIcons.plus),
       );
     }
     return Container(
@@ -434,7 +449,7 @@ class _Stepper extends StatelessWidget {
             tooltip: '$name 빼기',
             visualDensity: VisualDensity.compact,
             onPressed: () => onChanged(quantity - 1),
-            icon: Icon(quantity == 1 ? Icons.delete_outline_rounded : Icons.remove_rounded,
+            icon: Icon(quantity == 1 ? AppIcons.trash : AppIcons.minus,
                 size: 20, color: AppColors.primaryDeep),
           ),
           Text('$quantity',
@@ -450,7 +465,7 @@ class _Stepper extends StatelessWidget {
               HapticFeedback.selectionClick();
               onChanged(quantity + 1);
             },
-            icon: const Icon(Icons.add_rounded, size: 20, color: AppColors.primaryDeep),
+            icon: const Icon(AppIcons.plus, size: 20, color: AppColors.primaryDeep),
           ),
         ],
       ),
@@ -667,16 +682,16 @@ class _TipRow extends StatelessWidget {
             Wrap(
               spacing: 8,
               children: [
-                ChoiceChip(
-                  label: const Text('없음'),
+                AppChip(
+                  label: '없음',
                   selected: tipMinor == 0,
-                  onSelected: (_) => onChanged(0),
+                  onTap: () => onChanged(0),
                 ),
                 for (final p in suggestions)
-                  ChoiceChip(
-                    label: Text('$p%'),
+                  AppChip(
+                    label: '$p%',
                     selected: tipMinor != 0 && tipMinor == tipFor(p),
-                    onSelected: (_) => onChanged(tipFor(p)),
+                    onTap: () => onChanged(tipFor(p)),
                   ),
               ],
             ),
@@ -770,13 +785,10 @@ class _ChargesSheetState extends State<_ChargesSheet> {
           const Text('메뉴판에 적힌 대로 정해 주세요. 이 가게에서 다시 주문할 때도 그대로 써요.',
               style: TextStyle(fontSize: 14, color: AppColors.textSub, height: 1.4)),
           const SizedBox(height: 8),
-          SwitchListTile.adaptive(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('가격에 세금이 포함돼 있어요'),
-            subtitle: const Text('일본 税込, 한국·유럽 대부분',
-                style: TextStyle(fontSize: 13, color: AppColors.textHint)),
+          SwitchRow(
+            title: '가격에 세금이 포함돼 있어요',
+            subtitle: '일본 税込, 한국·유럽 대부분',
             value: _included,
-            activeTrackColor: AppColors.primary,
             onChanged: (v) => setState(() => _included = v),
           ),
           if (!_included) _percentField('별도 세율', _taxRate, '예) 일본 10, 태국 7'),

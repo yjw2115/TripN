@@ -1,16 +1,17 @@
 import 'package:flutter/material.dart';
 
 import '../../domain/receipt.dart';
+import '../../../../core/theme/app_icons.dart';
 
 extension ExpenseCategoryStyle on ExpenseCategory {
   IconData get icon => switch (this) {
-        ExpenseCategory.food => Icons.restaurant_rounded,
-        ExpenseCategory.cafe => Icons.local_cafe_rounded,
-        ExpenseCategory.shopping => Icons.shopping_bag_rounded,
-        ExpenseCategory.transport => Icons.directions_bus_rounded,
-        ExpenseCategory.lodging => Icons.hotel_rounded,
-        ExpenseCategory.activity => Icons.local_activity_rounded,
-        ExpenseCategory.other => Icons.receipt_long_rounded,
+        ExpenseCategory.food => AppIcons.food,
+        ExpenseCategory.cafe => AppIcons.cafe,
+        ExpenseCategory.shopping => AppIcons.shopping,
+        ExpenseCategory.transport => AppIcons.transport,
+        ExpenseCategory.lodging => AppIcons.lodging,
+        ExpenseCategory.activity => AppIcons.activity,
+        ExpenseCategory.other => AppIcons.receiptFill,
       };
 
   Color get color => switch (this) {

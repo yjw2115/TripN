@@ -9,6 +9,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../trip/presentation/widgets/trip_widgets.dart';
 import '../data/menu_parser.dart';
 import 'menu_screen.dart';
+import '../../../core/ui/controls.dart';
 
 /// 메뉴판 사진을 Gemini로 보내고, 읽으면 여행에 저장한 뒤 메뉴 고르기로 넘어간다.
 class MenuAnalyzeScreen extends ConsumerStatefulWidget {
@@ -85,7 +86,7 @@ class _MenuAnalyzeScreenState extends ConsumerState<MenuAnalyzeScreen> {
                 const SizedBox(
                     width: 28,
                     height: 28,
-                    child: CircularProgressIndicator(strokeWidth: 3)),
+                    child: AppSpinner(radius: 14)),
                 const SizedBox(height: 20),
               ],
               Text(

@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:travelen/app_providers.dart';
 import 'package:travelen/features/trip/data/trip_repository.dart';
+import 'package:travelen/features/trip/domain/trip.dart';
 import 'package:travelen/features/trip/presentation/join_trip_screen.dart';
 
 class _FakeUser implements User {
@@ -98,6 +99,26 @@ void main() {
     final members = await repo.watchMembers(tripId).first;
     expect(members.map((m) => (m.name, m.uid)),
         [('지민', 'alice'), ('민수', null), ('서연', 'bob')]);
+  });
+
+  testWidgets('joining fills in my name and account from MY', (tester) async {
+    await repo.setProfileName('bob', '서연');
+    await repo.setProfileAccount('bob',
+        const BankAccount(bank: '토스뱅크', number: '1000-1234-5678', holder: '서연'));
+    await enterCode(tester, code);
+    await tester.tap(find.text('참여하기'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('목록에 없어요'));
+    await tester.pump();
+    expect(find.widgetWithText(TextField, '서연'), findsOneWidget);
+
+    await tester.tap(find.text('완료'));
+    await tester.pumpAndSettle();
+
+    final bob = (await repo.watchMembers(tripId).first)
+        .singleWhere((m) => m.uid == 'bob');
+    expect(bob.name, '서연');
+    expect(bob.account?.number, '1000-1234-5678');
   });
 
   testWidgets('an invite link skips typing the code', (tester) async {

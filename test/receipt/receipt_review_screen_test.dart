@@ -9,6 +9,8 @@ import 'package:travelen/core/money/exchange_rate.dart';
 import 'package:travelen/features/receipt/domain/receipt.dart';
 import 'package:travelen/features/receipt/presentation/receipt_review_screen.dart';
 import 'package:travelen/features/trip/domain/trip.dart';
+import 'package:travelen/core/theme/app_icons.dart';
+import 'package:travelen/core/ui/controls.dart';
 
 const _me = Member(id: 'me', name: '지민', uid: 'uid-me');
 const _minsu = Member(id: 'g1', name: '민수');
@@ -185,7 +187,7 @@ void main() {
     await tester.pump();
 
     expect(find.text('지민 결제'), findsNothing);
-    expect(find.byIcon(Icons.person_outline_rounded), findsNothing);
+    expect(find.byIcon(AppIcons.user), findsNothing);
   });
 
   testWidgets('with companions, the payer starts as me and can be changed',
@@ -224,7 +226,7 @@ void main() {
     await _tapVisible(tester, find.text('찹쌀밥'));
     await tester.pumpAndSettle();
     expect(find.text('서연'), findsNothing);
-    await _tapVisible(tester, find.widgetWithText(FilterChip, '민수'));
+    await _tapVisible(tester, find.widgetWithText(AppChip, '민수'));
     await tester.tap(find.text('저장'));
     await tester.pumpAndSettle();
 
@@ -295,7 +297,7 @@ void main() {
     expect(find.textContaining('같이 먹은 사람'), findsNothing);
     expect(
         tester
-            .widget<IconButton>(find.widgetWithIcon(IconButton, Icons.add_rounded).first)
+            .widget<IconButton>(find.widgetWithIcon(IconButton, AppIcons.plus).first)
             .onPressed,
         isNull);
 

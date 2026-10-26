@@ -43,6 +43,16 @@
                 <data android:scheme="tripn" android:host="app" />
             </intent-filter>
         </activity>
+        <!-- 푸시 알림(FCM): 상태 표시줄 아이콘·색과, 채널을 정하지 않은 알림이 갈 채널 (MainActivity가 만든다) -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_notification" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_color"
+            android:resource="@color/notification_color" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="trip_activity" />
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

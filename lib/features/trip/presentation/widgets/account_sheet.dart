@@ -9,23 +9,45 @@ import '../../domain/bank.dart';
 import '../../domain/trip.dart';
 import 'bank_picker.dart';
 import 'trip_widgets.dart';
+import '../../../../core/theme/app_icons.dart';
 
 /// 정산 때 돈을 받을 계좌를 등록한다. 이름만 있는 동행자 것도 대신 넣을 수 있다.
 Future<void> editAccount(
     BuildContext context, WidgetRef ref, String tripId, Member member) async {
-  final result = await showAppSheet<({BankAccount? account})>(
-    context,
-    (context) => _AccountSheet(member: member),
-  );
+  final result = await showAccountSheet(context,
+      title: '${member.name}님 계좌', initial: member.account, holder: member.name);
   if (result == null || !context.mounted) return;
   reportWriteErrors(context,
       ref.read(tripRepositoryProvider).setAccount(tripId, member.id, result.account));
 }
 
-class _AccountSheet extends StatefulWidget {
-  const _AccountSheet({required this.member});
+/// 계좌를 적는 시트. 저장하면 계좌, 지우기를 누르면 account가 null인 결과를 돌려준다.
+Future<({BankAccount? account})?> showAccountSheet(
+  BuildContext context, {
+  required String title,
+  required BankAccount? initial,
+  required String holder,
+  String note = '정산할 때 보낼 사람이 복사해서 송금 앱에 붙여 넣어요. 이 여행의 동행자에게만 보여요.',
+}) =>
+    showAppSheet<({BankAccount? account})>(
+      context,
+      (context) => _AccountSheet(
+          title: title, initial: initial, holder: holder, note: note),
+    );
 
-  final Member member;
+class _AccountSheet extends StatefulWidget {
+  const _AccountSheet(
+      {required this.title,
+      required this.initial,
+      required this.holder,
+      required this.note});
+
+  final String title;
+  final BankAccount? initial;
+
+  /// 예금주 칸에 미리 넣을 이름.
+  final String holder;
+  final String note;
 
   @override
   State<_AccountSheet> createState() => _AccountSheetState();
@@ -33,11 +55,10 @@ class _AccountSheet extends StatefulWidget {
 
 class _AccountSheetState extends State<_AccountSheet> {
   /// 고른 은행 이름. 예전에 직접 적은 이름이면 고르기 전까지 그대로 둔다.
-  late String _bank = widget.member.account?.bank ?? '';
-  late final _number =
-      TextEditingController(text: widget.member.account?.number);
-  late final _holder = TextEditingController(
-      text: widget.member.account?.holder ?? widget.member.name);
+  late String _bank = widget.initial?.bank ?? '';
+  late final _number = TextEditingController(text: widget.initial?.number);
+  late final _holder =
+      TextEditingController(text: widget.initial?.holder ?? widget.holder);
 
   @override
   void dispose() {
@@ -81,7 +102,7 @@ class _AccountSheetState extends State<_AccountSheet> {
   Widget build(BuildContext context) {
     final number = _number.text.trim();
     return SheetScaffold(
-      title: '${widget.member.name}님 계좌',
+      title: widget.title,
       primaryLabel: '저장',
       onPrimary: number.isEmpty
           ? null
@@ -92,16 +113,17 @@ class _AccountSheetState extends State<_AccountSheet> {
                   holder: _holder.text.trim(),
                 ),
               )),
-      secondaryLabel: widget.member.account == null ? null : '지우기',
+      secondaryLabel: widget.initial == null ? null : '지우기',
       onSecondary: () => Navigator.pop(context, (account: null)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Padding(
-            padding: EdgeInsets.only(bottom: 16),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 16),
             child: Text(
-              '정산할 때 보낼 사람이 복사해서 송금 앱에 붙여 넣어요. 이 여행의 동행자에게만 보여요.',
-              style: TextStyle(fontSize: 14, color: AppColors.textSub, height: 1.4),
+              widget.note,
+              style: const TextStyle(
+                  fontSize: 14, color: AppColors.textSub, height: 1.4),
             ),
           ),
           _BankField(bank: _bank, onTap: _pickBank),
@@ -159,7 +181,7 @@ class _BankField extends StatelessWidget {
                                 : AppColors.text),
                       ),
                     ),
-                    const Icon(Icons.expand_more_rounded,
+                    const Icon(AppIcons.chevronDown,
                         color: AppColors.textSub),
                   ],
                 ),

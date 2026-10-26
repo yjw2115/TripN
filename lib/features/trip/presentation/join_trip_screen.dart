@@ -9,6 +9,9 @@ import '../../../core/theme/app_theme.dart';
 import '../data/trip_repository.dart';
 import '../domain/trip.dart';
 import 'widgets/trip_widgets.dart';
+import '../../../core/theme/app_icons.dart';
+import '../../../core/ui/toast.dart';
+import '../../../core/ui/controls.dart';
 
 enum _Step { code, confirm, pick }
 
@@ -77,8 +80,7 @@ class _JoinTripScreenState extends ConsumerState<JoinTripScreen> {
         final user = await ref.read(currentUserProvider.future);
         if (!mounted) return;
         reportWriteErrors(context, _repo.selectTrip(user.uid, invite.tripId));
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("이미 참여한 '${invite.tripName}' 여행이에요")));
+        showToast(context, "이미 참여한 '${invite.tripName}' 여행이에요");
         context.go('/');
         return;
       }
@@ -107,7 +109,11 @@ class _JoinTripScreenState extends ConsumerState<JoinTripScreen> {
     try {
       final user = await ref.read(currentUserProvider.future);
       await _repo.join(invite, user.uid);
-      if (mounted) setState(() => _step = _Step.pick);
+      if (!mounted) return;
+      // 새 사람으로 들어갈 때 쓸 이름은 MY 탭의 이름으로 채워 둔다.
+      final myName = ref.read(profileProvider).value?.name;
+      if (myName != null && _name.text.isEmpty) _name.text = myName;
+      setState(() => _step = _Step.pick);
     } on FirebaseException catch (e) {
       debugPrint('Join failed: $e');
       if (mounted) {
@@ -135,9 +141,17 @@ class _JoinTripScreenState extends ConsumerState<JoinTripScreen> {
       } else {
         await _repo.renameMember(invite.tripId, user.uid, _name.text.trim());
       }
+      // MY 탭의 받을 계좌를 넣는다. 동행자가 대신 적어 둔 계좌가 있으면 그대로 둔다.
+      final account = ref.read(profileProvider).value?.account;
+      final members =
+          ref.read(tripMembersProvider(invite.tripId)).value ?? const <Member>[];
+      final claimed = members.where((m) => m.id == guestId).firstOrNull;
+      if (account != null && claimed?.account == null) {
+        await _repo.setAccount(invite.tripId, guestId ?? user.uid, account);
+      }
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("'${invite.tripName}' 여행에 참여했어요")));
+      showToast(context, "'${invite.tripName}' 여행에 참여했어요",
+          kind: ToastKind.success);
       context.go('/');
     } on FirebaseException catch (e) {
       debugPrint('Finish join failed: $e');
@@ -149,9 +163,11 @@ class _JoinTripScreenState extends ConsumerState<JoinTripScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // 링크로 바로 열리면 홈 화면이 없어서 아무도 내 여행 목록을 지켜보지 않는다.
-    // Riverpod은 지켜보는 쪽이 없는 provider를 멈춰 두므로, 이미 참여한 여행인지 볼 수 있게 여기서 지켜본다.
+    // 링크로 바로 열리면 홈 화면이 없어서 아무도 내 여행 목록과 MY 프로필을 지켜보지 않는다.
+    // Riverpod은 지켜보는 쪽이 없는 provider를 멈춰 두므로, 이미 참여한 여행인지 보고
+    // 내 이름·계좌를 채울 수 있게 여기서 지켜본다.
     ref.watch(myTripsProvider);
+    ref.watch(profileProvider);
     final guests = _step == _Step.pick
         ? (ref.watch(tripMembersProvider(_invite!.tripId)).value ?? const <Member>[])
             .where((m) => m.isGuest)
@@ -181,7 +197,7 @@ class _JoinTripScreenState extends ConsumerState<JoinTripScreen> {
             ? null
             : IconButton(
                 tooltip: '닫기',
-                icon: const Icon(Icons.close_rounded),
+                icon: const Icon(AppIcons.close),
                 onPressed: () => context.go('/'),
               ),
       ),
@@ -206,8 +222,7 @@ class _JoinTripScreenState extends ConsumerState<JoinTripScreen> {
                 ? const SizedBox(
                     width: 22,
                     height: 22,
-                    child: CircularProgressIndicator(
-                        strokeWidth: 2.5, color: AppColors.textHint))
+                    child: AppSpinner(radius: 9, color: AppColors.textHint))
                 : Text(label),
           ),
         ),
@@ -256,7 +271,7 @@ class _JoinTripScreenState extends ConsumerState<JoinTripScreen> {
               height: 44,
               decoration: const BoxDecoration(
                   color: AppColors.primaryLight, shape: BoxShape.circle),
-              child: const Icon(Icons.luggage_outlined,
+              child: const Icon(AppIcons.trip,
                   color: AppColors.primaryDeep),
             ),
             title: Text(_invite!.tripName,
@@ -307,7 +322,7 @@ class _JoinTripScreenState extends ConsumerState<JoinTripScreen> {
             leading: const CircleAvatar(
               radius: 20,
               backgroundColor: AppColors.background,
-              child: Icon(Icons.person_add_alt_1_outlined,
+              child: Icon(AppIcons.userPlus,
                   size: 20, color: AppColors.textSub),
             ),
             label: '목록에 없어요',
@@ -370,7 +385,7 @@ class _Choice extends StatelessWidget {
       title: Text(label,
           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
       trailing: Icon(
-        selected ? Icons.check_circle_rounded : Icons.circle_outlined,
+        selected ? AppIcons.checkCircle : AppIcons.circle,
         color: selected ? AppColors.primaryDeep : AppColors.border,
       ),
       selected: selected,

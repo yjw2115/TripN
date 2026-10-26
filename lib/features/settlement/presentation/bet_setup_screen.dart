@@ -15,6 +15,8 @@ import '../../trip/presentation/widgets/trip_widgets.dart';
 import '../domain/bet.dart';
 import 'bet_game_screen.dart';
 import 'games/game_icon.dart';
+import '../../../core/theme/app_icons.dart';
+import '../../../core/ui/controls.dart';
 
 String _won(int krw) => formatMoney(krw, Currency.krw);
 
@@ -137,7 +139,7 @@ class _BetSetupScreenState extends ConsumerState<BetSetupScreen> {
     if (trip == null || members == null || expenses == null) {
       return Scaffold(
         appBar: AppBar(title: const Text('미니게임으로 정하기')),
-        body: const Center(child: CircularProgressIndicator()),
+        body: const Center(child: AppSpinner()),
       );
     }
     _seed(trip, members);
@@ -203,11 +205,10 @@ class _BetSetupScreenState extends ConsumerState<BetSetupScreen> {
                   spacing: 8,
                   children: [
                     for (final unit in const [1000, 10000])
-                      ChoiceChip(
-                        label: Text('${ChangeStake(unit).unitLabel} 단위'),
+                      AppChip(
+                        label: '${ChangeStake(unit).unitLabel} 단위',
                         selected: _unit == unit,
-                        showCheckmark: false,
-                        onSelected: (_) => setState(() => _unit = unit),
+                        onTap: () => setState(() => _unit = unit),
                       ),
                   ],
                 ),
@@ -249,14 +250,14 @@ class _BetSetupScreenState extends ConsumerState<BetSetupScreen> {
                 runSpacing: 8,
                 children: [
                   for (final m in members)
-                    FilterChip(
-                      avatar: MemberAvatar(m, size: 24),
-                      label: Text(m.name),
+                    AppChip(
+                      leading: MemberAvatar(m, size: 24),
+                      label: m.name,
                       selected: _playerIds.contains(m.id),
-                      showCheckmark: false,
-                      onSelected: (on) => setState(
-                        () =>
-                            on ? _playerIds.add(m.id) : _playerIds.remove(m.id),
+                      onTap: () => setState(
+                        () => _playerIds.contains(m.id)
+                            ? _playerIds.remove(m.id)
+                            : _playerIds.add(m.id),
                       ),
                     ),
                 ],
@@ -399,8 +400,8 @@ class _StakeOption extends StatelessWidget {
               const SizedBox(width: 8),
               Icon(
                 selected
-                    ? Icons.radio_button_checked_rounded
-                    : Icons.radio_button_off_rounded,
+                    ? AppIcons.radioOn
+                    : AppIcons.circle,
                 color: selected ? AppColors.primaryDeep : AppColors.border,
               ),
             ],
@@ -467,7 +468,7 @@ class _ExpenseField extends StatelessWidget {
                       ),
               ),
               const Icon(
-                Icons.chevron_right_rounded,
+                AppIcons.chevronRight,
                 color: AppColors.textHint,
               ),
             ],

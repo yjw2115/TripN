@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:collection/collection.dart';
 
 import '../../../core/money/exchange_rate.dart';
 import '../../receipt/domain/receipt.dart';
@@ -38,7 +39,7 @@ class ExpenseRepository {
     /// 고칠 때 통화·날짜가 그대로면 처음 고정한 환율을 건드리지 않는다.
     bool keepRate = false,
 
-    /// 새 지출을 무엇으로 만들었는지: 'receipt'(영수증) 또는 'menu'(메뉴판 주문).
+    /// 새 지출을 무엇으로 만들었는지: 'receipt'(영수증), 'menu'(메뉴판 주문), 'manual'(직접 입력).
     String source = 'receipt',
   }) {
     final data = <String, Object?>{
@@ -102,4 +103,20 @@ class ExpenseRepository {
 
   Future<void> deleteExpense(String tripId, String expenseId) =>
       _expenses(tripId).doc(expenseId).delete();
+
+  /// 정산을 마친 지출 묶음처럼 여러 지출을 한 번에 지운다.
+  /// 보안 규칙이 문서마다 여행 문서를 읽어서, 한 번에 읽을 수 있는 문서 수(20)를 넘지 않게 나눈다.
+  /// 묶음마다 기다리지 않고 한꺼번에 보내서 오프라인에서도 바로 모두 사라진다.
+  Future<void> deleteExpenses(String tripId, Iterable<String> expenseIds) {
+    WriteBatch deletes(List<String> ids) {
+      final batch = _db.batch();
+      for (final id in ids) {
+        batch.delete(_expenses(tripId).doc(id));
+      }
+      return batch;
+    }
+
+    return Future.wait(
+        [for (final chunk in expenseIds.slices(8)) deletes(chunk).commit()]);
+  }
 }

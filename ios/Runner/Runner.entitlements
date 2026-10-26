@@ -6,6 +6,9 @@
 	<key>com.apple.developer.devicecheck.appattest-environment</key>
 	<string>production</string>
 	<!-- 초대 링크(https://travelen-468bc.web.app/join/...)를 앱에서 연다. hosting/.well-known/apple-app-site-association과 짝 -->
+	<!-- 푸시 알림(FCM은 APNs로 보낸다). 출시용으로 내보낼 때 Xcode가 production으로 바꾼다 -->
+	<key>aps-environment</key>
+	<string>development</string>
 	<key>com.apple.developer.associated-domains</key>
 	<array>
 		<string>applinks:travelen-468bc.web.app</string>

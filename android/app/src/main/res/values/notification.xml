@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 알림 아이콘 색 (AppColors.primaryDeep) -->
+    <color name="notification_color">#3F7A2A</color>
+    <!-- 동행자 지출·정산 알림 채널. 휴대폰 설정 > 알림에 이 이름으로 보인다 -->
+    <string name="trip_activity_channel">여행 소식</string>
+</resources>

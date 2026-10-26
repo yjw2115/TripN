@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/ui/app_dialog.dart';
+import '../../../../core/ui/toast.dart';
 import '../../domain/trip.dart';
 
 /// 이름 첫 글자를 넣은 동그라미. 앱을 쓰는 동행자는 초록, 이름만 있는 동행자는 회색.
@@ -76,38 +78,26 @@ class SectionCard extends StatelessWidget {
 /// Firestore 쓰기는 기기에 먼저 반영되니 기다리지 않는다 (오프라인이면 서버 응답이 한참 늦다).
 /// 서버가 거절했을 때만 알려준다.
 void reportWriteErrors(BuildContext context, Future<void> write) {
-  final messenger = ScaffoldMessenger.of(context);
+  final overlay = Overlay.maybeOf(context, rootOverlay: true);
   unawaited(write.catchError((Object e) {
     debugPrint('Write failed: $e');
-    messenger.showSnackBar(
-        const SnackBar(content: Text('저장하지 못했어요. 잠시 후 다시 시도해 주세요.')));
+    if (overlay != null) {
+      showToastOn(overlay, '저장하지 못했어요. 잠시 후 다시 시도해 주세요.',
+          kind: ToastKind.error);
+    }
   }));
 }
 
+/// 예전 이름. [showConfirmDialog]와 같다.
 Future<bool> confirmDialog(
   BuildContext context, {
   required String title,
   required String body,
   required String confirmLabel,
   bool destructive = false,
-}) async {
-  final confirmed = await showDialog<bool>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: Text(title),
-      content: Text(body),
-      actions: [
-        TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('취소')),
-        TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: destructive
-                ? TextButton.styleFrom(foregroundColor: AppColors.danger)
-                : null,
-            child: Text(confirmLabel)),
-      ],
-    ),
-  );
-  return confirmed == true;
-}
+}) =>
+    showConfirmDialog(context,
+        title: title,
+        body: body,
+        confirmLabel: confirmLabel,
+        destructive: destructive);

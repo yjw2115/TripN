@@ -151,6 +151,42 @@ trips/{tripId}   settlementBet{game(ddakji|wave), stake(change|treat), unit | ex
   - 파도타기: 한 사람이 물고기 한 마리씩 맡아 파도를 타고, 가장 늦게 도착한 사람이 걸린다. 출발할 때 경주를 미리 계산하고, 속도·졸기·큰 파도는 모두 같은 분포에서 뽑아서 레인마다 걸릴 확률이 같다.
   - 무작위는 `Random.secure()`. 그림은 이모지와 CustomPainter만 쓰고 에셋을 더하지 않았다.
 
+## 7단계: 알림
+
+앱을 쓰는 동행자에게 푸시로 알린다. 내가 한 일은 나에게 알리지 않는다.
+
+| 언제 | 보내는 곳 | 끄는 곳 (MY → 알림) |
+| --- | --- | --- |
+| 동행자가 지출을 기록 | Functions `notifyExpense` (지출 문서가 생길 때) | 동행자 지출 |
+| 동행자가 정산 요청 보내기 (공유 창을 닫지 않았을 때) | 앱 → Functions `sendTripNotice` | 정산 |
+| 동행자가 정산 완료 | 앱 → Functions `sendTripNotice` | 정산 |
+
+```
+users/{uid}   fcmTokens[]                       ← 기기마다 FCM 토큰. 보낼 수 없게 된 토큰은 Functions가 지운다
+              notify{expense, settlement}        ← false면 그 알림을 보내지 않는다 (없으면 켜짐)
+```
+
+- 권한은 앱을 쓰는 동행자가 둘 이상인 여행을 볼 때 처음 묻는다 (혼자면 알릴 일이 없다). MY → 알림에서도 켤 수 있다.
+- 정산 요청은 받는 사람마다 자기 몫을 알려준다 ("지민님에게 23,069원 보내 주세요"). 송금 목록은 앱이 계산해서 보낸다.
+- 알림을 누르면 그 여행으로 바꾸고, 정산 알림이면 정산 화면을 연다. 앱을 보고 있을 때 온 알림은 iOS는 시스템 배너,
+  Android는 스낵바로 보여준다. iOS 메시지는 `aps.sound`와 `apns-priority: 10`을 넣는다 (notification_class 앱과 같은 설정).
+- 알림이 오지 않으면 MY → 알림의 "알림 점검"에서 확인한다: 이 기기 등록(토큰), 휴대폰에서 꺼 둔 표시 방식,
+  테스트 알림(Functions `sendTestNotice`, 결과는 `users/{uid}.pushTest`). FCM이 거절하면 까닭을 보여준다
+  (예: `messaging/third-party-auth-error`는 APNs 키의 키 ID·팀 ID나 올린 앱이 틀렸다).
+- 문구·받을 사람 고르기는 `functions/notify.js` (`npm test`로 확인). 앱의 통화 표(`lib/core/money/currency.dart`)와 같은 표를 쓴다.
+- Android는 "여행 소식" 채널(`trip_activity`, MainActivity가 만든다)과 영수증 모양 알림 아이콘을 쓴다.
+
+**출시 전에 할 일**
+
+1. Apple Developer → Keys에서 APNs 키(.p8)를 만들고 Firebase 콘솔 → 프로젝트 설정 → 클라우드 메시징 → Apple 앱 구성에 올린다.
+   (없으면 iOS로는 보내지지 않는다.) Xcode에서 한 번 빌드해 Push Notifications 기능이 프로비저닝 프로필에 들어가게 한다.
+2. 함수 배포: `firebase deploy --only functions --project travelen-468bc`
+   (처음 배포할 때 Firestore 트리거용 Eventarc 권한을 CLI가 설정한다.)
+
+시뮬레이터는 `flutter run`이 서명하지 않아 `aps-environment`가 빠지므로 FCM 토큰을 받지 못한다.
+받는 쪽(스낵바, 알림을 눌러 이동)은 `xcrun simctl push <기기> com.preper.tripN payload.apns`로 확인한다
+(payload에 `"gcm.message_id"`와 `tripId`·`type`을 넣는다). 실제 발송은 기기에서 확인한다.
+
 ## Firebase 설정 (travelen-468bc)
 
 1. AI Logic → 시작하기 → Gemini Developer API

@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.0.0+7
+version: 1.0.0+10
 
 environment:
   sdk: ^3.11.3
@@ -52,6 +52,10 @@ dependencies:
   share_plus: ^13.3.1
   # 7.0.1은 firebase_core 5.1.0(iOS SDK 12.19.3)을 요구하는데, FirebaseAppCheck 12.19.3이 CocoaPods에 없어 iOS 빌드가 깨진다.
   cloud_functions: 7.0.0
+  # 푸시 알림. cloud_functions처럼 firebase_core 5.0.0과 짝인 버전에 고정한다 (17.0.1은 5.1.0을 요구).
+  firebase_messaging: 17.0.0
+  # 머티리얼 아이콘 대신 쓰는 아이콘 (둥근 선·채움). lib/core/theme/app_icons.dart에서만 꺼내 쓴다.
+  phosphor_flutter: ^2.1.0
 
 dev_dependencies:
   flutter_test:

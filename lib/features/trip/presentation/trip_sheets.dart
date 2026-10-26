@@ -7,15 +7,19 @@ import '../../../core/theme/app_theme.dart';
 import '../../receipt/presentation/widgets/edit_sheets.dart';
 import '../domain/trip.dart';
 import 'widgets/trip_widgets.dart';
+import '../../../core/theme/app_icons.dart';
 
-enum _SwitcherAction { create, join }
+enum _SwitcherAction { settings, create, join }
 
-/// 홈 화면 제목을 누르면 여는 여행 목록. 다른 여행을 고르거나 새로 만들거나 초대 코드로 들어간다.
+/// 플로팅 바의 여행 이름을 누르면 여는 여행 목록. 다른 여행을 고르거나 새로 만들거나 초대 코드로 들어간다.
+/// 지금 여행의 "설정"은 여행 설정 화면(이름·환율·삭제)으로 간다.
 Future<void> showTripSwitcher(BuildContext context, WidgetRef ref) async {
   final action = await showAppSheet<_SwitcherAction>(
       context, (context) => const _TripSwitcher());
   if (!context.mounted) return;
   switch (action) {
+    case _SwitcherAction.settings:
+      context.push('/trip');
     case _SwitcherAction.create:
       await _createTrip(context, ref);
     case _SwitcherAction.join:
@@ -25,14 +29,18 @@ Future<void> showTripSwitcher(BuildContext context, WidgetRef ref) async {
   }
 }
 
+/// 내 이름은 MY 탭에서 정한 이름, 없으면 지금 여행에서 쓰는 이름으로 채워 둔다.
+/// MY 탭에 받을 계좌가 있으면 새 여행에도 넣는다.
 Future<void> _createTrip(BuildContext context, WidgetRef ref) async {
+  final profile = ref.read(profileProvider).value;
   final myMember = ref.read(myMemberProvider).value;
   final result = await showAppSheet<({String name, String myName})>(
     context,
     (context) => _CreateTripSheet(
-      initialMyName: myMember == null || myMember.name == defaultMyName
-          ? ''
-          : myMember.name,
+      initialMyName: profile?.name ??
+          (myMember == null || myMember.name == defaultMyName
+              ? ''
+              : myMember.name),
     ),
   );
   if (result == null || !context.mounted) return;
@@ -41,7 +49,10 @@ Future<void> _createTrip(BuildContext context, WidgetRef ref) async {
   reportWriteErrors(
     context,
     ref.read(tripRepositoryProvider).createTrip(
-        uid: user.uid, name: result.name, myName: result.myName),
+        uid: user.uid,
+        name: result.name,
+        myName: result.myName,
+        myAccount: profile?.account),
   );
 }
 
@@ -72,16 +83,46 @@ class _TripSwitcher extends ConsumerWidget {
                   ListTile(
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12)),
-                    leading: const Icon(Icons.luggage_outlined,
-                        color: AppColors.textSub),
+                    tileColor:
+                        trip.id == current?.id ? AppColors.primaryLight : null,
+                    leading: Icon(AppIcons.trip,
+                        color: trip.id == current?.id
+                            ? AppColors.primaryDeep
+                            : AppColors.textSub),
                     title: Text(trip.name,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                             fontSize: 16, fontWeight: FontWeight.w600)),
+                    subtitle: trip.id == current?.id
+                        ? const Text('지금 여행',
+                            style: TextStyle(
+                                fontSize: 13, color: AppColors.primaryDeep))
+                        : null,
                     trailing: trip.id == current?.id
-                        ? const Icon(Icons.check_rounded,
-                            color: AppColors.primaryDeep)
+                        ? Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(
+                                    context, _SwitcherAction.settings),
+                                style: TextButton.styleFrom(
+                                  backgroundColor: AppColors.surface,
+                                  minimumSize: const Size(0, 34),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 12),
+                                  textStyle: const TextStyle(
+                                      fontFamily: 'Pretendard',
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600),
+                                ),
+                                child: const Text('설정'),
+                              ),
+                              const SizedBox(width: 8),
+                              const Icon(AppIcons.check,
+                                  color: AppColors.primaryDeep),
+                            ],
+                          )
                         : null,
                     onTap: () {
                       final uid = ref.read(currentUserProvider).value?.uid;
@@ -101,13 +142,13 @@ class _TripSwitcher extends ConsumerWidget {
             child: Column(
               children: [
                 ListTile(
-                  leading: const Icon(Icons.add_rounded,
+                  leading: const Icon(AppIcons.plus,
                       color: AppColors.primaryDeep),
                   title: const Text('새 여행 만들기'),
                   onTap: () => Navigator.pop(context, _SwitcherAction.create),
                 ),
                 ListTile(
-                  leading: const Icon(Icons.vpn_key_outlined,
+                  leading: const Icon(AppIcons.key,
                       color: AppColors.primaryDeep),
                   title: const Text('초대 코드로 참여하기'),
                   onTap: () => Navigator.pop(context, _SwitcherAction.join),

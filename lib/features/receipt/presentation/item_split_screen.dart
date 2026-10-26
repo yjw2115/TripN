@@ -9,6 +9,7 @@ import '../../trip/domain/trip.dart';
 import '../../trip/presentation/widgets/trip_widgets.dart';
 import '../domain/receipt.dart';
 import 'widgets/count_stepper.dart';
+import '../../../core/theme/app_icons.dart';
 
 /// 품목을 누가 가져갔고 나머지를 누가 함께 나누는지: "지민 2 · 민수 1 · 나머지 2개 함께".
 /// 아무도 고르지 않았고 모두 함께 나누면 빈 문자열. [names]는 멤버 id → 이름 (보여줄 순서대로).
@@ -349,11 +350,11 @@ class _SplitItemRow extends StatelessWidget {
                       : '${member.name} 몫으로 고르기',
                   onPressed: onTap,
                   icon: mine > 0
-                      ? const Icon(Icons.check_circle_rounded,
+                      ? const Icon(AppIcons.checkCircle,
                           size: 30, color: AppColors.primaryDeep)
                       : taker != null
                           ? MemberAvatar(taker!, size: 30)
-                          : const Icon(Icons.circle_outlined,
+                          : const Icon(AppIcons.circle,
                               size: 30, color: AppColors.textHint),
                 ),
             ],

@@ -96,6 +96,66 @@ class BankAccount {
   }
 }
 
+/// MY 탭에서 정한 내 이름과 받을 계좌, 알림 설정 (users/{uid}, 나만 읽는다).
+/// 이름과 계좌는 새 여행을 만들거나 초대로 들어갈 때 이 여행의 내 멤버에 채워 넣는다.
+class Profile {
+  const Profile({
+    this.name,
+    this.account,
+    this.notifyExpense = true,
+    this.notifySettlement = true,
+    this.pushTest,
+    this.seenScanGuide = false,
+  });
+
+  final String? name;
+  final BankAccount? account;
+
+  /// 동행자가 지출을 기록하면 알린다. 끄기 전까지 켜져 있다.
+  final bool notifyExpense;
+
+  /// 정산 요청을 받거나 동행자가 정산을 마치면 알린다.
+  final bool notifySettlement;
+
+  /// MY → 알림에서 마지막으로 보낸 테스트 알림의 결과 (Functions sendTestNotice가 남긴다).
+  final PushTest? pushTest;
+
+  /// 처음 쓸 때 스캔 버튼 안내를 봤다.
+  final bool seenScanGuide;
+
+  factory Profile.fromMap(Map<String, Object?>? map) {
+    final name = map?['name'] as String?;
+    final notify = map?['notify'] as Map?;
+    return Profile(
+      name: name == null || name.isEmpty ? null : name,
+      account: BankAccount.fromMap(map?['account'] as Map?),
+      notifyExpense: notify?[NotifyTopic.expense.name] != false,
+      notifySettlement: notify?[NotifyTopic.settlement.name] != false,
+      pushTest: PushTest.fromMap(map?['pushTest'] as Map?),
+      seenScanGuide: map?['seenScanGuide'] == true,
+    );
+  }
+}
+
+/// 테스트 알림을 FCM이 받아 줬는지. 실패했으면 FCM 오류 코드 (예: messaging/third-party-auth-error).
+class PushTest {
+  const PushTest({required this.at, required this.ok, this.code});
+
+  final DateTime at;
+  final bool ok;
+  final String? code;
+
+  static PushTest? fromMap(Map? map) {
+    final at = DateTime.tryParse(map?['at'] as String? ?? '');
+    if (at == null) return null;
+    return PushTest(
+        at: at, ok: map!['ok'] == true, code: map['code'] as String?);
+  }
+}
+
+/// 사용자가 따로 끌 수 있는 알림 묶음. users/{uid}.notify의 키이고, Functions(functions/notify.js)도 같은 이름을 쓴다.
+enum NotifyTopic { expense, settlement }
+
 /// 이름을 정하기 전 내 멤버 이름.
 const defaultMyName = '나';
 

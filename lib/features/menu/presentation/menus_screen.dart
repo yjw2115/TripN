@@ -5,8 +5,11 @@ import 'package:go_router/go_router.dart';
 
 import '../../../app_providers.dart';
 import '../../../core/theme/app_theme.dart';
-import '../../trip/presentation/widgets/trip_widgets.dart';
 import '../domain/menu.dart';
+import '../../../core/theme/app_icons.dart';
+import '../../../core/ui/toast.dart';
+import '../../../core/ui/controls.dart';
+import 'menu_actions.dart';
 
 /// 메뉴판으로 주문하기의 첫 화면. 이 여행에서 찍은 가게별 메뉴판과 새로 찍기.
 class MenusScreen extends ConsumerWidget {
@@ -24,25 +27,17 @@ class MenusScreen extends ConsumerWidget {
     } on PlatformException catch (e) {
       debugPrint('Menu capture failed: $e');
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(fromGallery
+      showToast(
+          context,
+          fromGallery
               ? '사진을 불러오지 못했어요.'
-              : '카메라를 열지 못했어요. 권한을 확인하거나 앨범에서 선택해 주세요.')));
+              : '카메라를 열지 못했어요. 권한을 확인하거나 앨범에서 선택해 주세요.',
+          kind: ToastKind.error);
     }
   }
 
-  Future<void> _delete(BuildContext context, WidgetRef ref, Menu menu) async {
-    final confirmed = await confirmDialog(context,
-        title: '메뉴판을 지울까요?',
-        body: '${menu.storeName.isEmpty ? '이 메뉴판' : menu.storeName}을 목록에서 지워요. 이미 기록한 지출은 그대로예요.',
-        confirmLabel: '지우기',
-        destructive: true);
-    if (!confirmed || !context.mounted) return;
-    final tripId = ref.read(currentTripProvider).value?.id;
-    if (tripId == null) return;
-    reportWriteErrors(
-        context, ref.read(menuRepositoryProvider).delete(tripId, menu.id));
-  }
+  Future<void> _delete(BuildContext context, WidgetRef ref, Menu menu) =>
+      confirmDeleteMenu(context, ref, menu);
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -76,7 +71,7 @@ class MenusScreen extends ConsumerWidget {
         AsyncValue(hasError: true) => const Center(
             child: Text('메뉴판을 불러오지 못했어요',
                 style: TextStyle(color: AppColors.textHint))),
-        _ => const Center(child: CircularProgressIndicator()),
+        _ => const Center(child: AppSpinner()),
       },
       bottomNavigationBar: SafeArea(
         child: Padding(
@@ -86,7 +81,7 @@ class MenusScreen extends ConsumerWidget {
             children: [
               FilledButton.icon(
                 onPressed: () => _capture(context, ref, fromGallery: false),
-                icon: const Icon(Icons.menu_book_rounded),
+                icon: const Icon(AppIcons.menuBook),
                 label: const Text('메뉴판 찍기'),
               ),
               TextButton(
@@ -122,7 +117,7 @@ class _MenuCard extends StatelessWidget {
           height: 44,
           decoration: const BoxDecoration(
               color: AppColors.primaryLight, shape: BoxShape.circle),
-          child: const Icon(Icons.restaurant_menu_rounded,
+          child: const Icon(AppIcons.menu,
               color: AppColors.primaryDeep),
         ),
         title: Text(menu.storeName.isEmpty ? '이름 없는 가게' : menu.storeName,
@@ -132,7 +127,7 @@ class _MenuCard extends StatelessWidget {
         subtitle: Text(
             '메뉴 ${menu.items.length}개 · ${menu.currency.nameKo} ${menu.currency.code}',
             style: const TextStyle(fontSize: 13, color: AppColors.textHint)),
-        trailing: const Icon(Icons.chevron_right_rounded,
+        trailing: const Icon(AppIcons.chevronRight,
             color: AppColors.textHint),
         onTap: onTap,
         onLongPress: onLongPress,
@@ -157,7 +152,7 @@ class _EmptyView extends StatelessWidget {
               height: 88,
               decoration: const BoxDecoration(
                   color: AppColors.primaryLight, shape: BoxShape.circle),
-              child: const Icon(Icons.restaurant_menu_rounded,
+              child: const Icon(AppIcons.menu,
                   size: 44, color: AppColors.primaryDeep),
             ),
             const SizedBox(height: 20),
