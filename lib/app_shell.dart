@@ -21,7 +21,7 @@ import 'core/ui/toast.dart';
 /// 지출·통계·MY 세 탭을 담고, 화면 아래에 떠 있는 바를 둔다.
 ///
 /// 바: [여행 이름 · 인원 | 지출 | 통계 | MY]  (스캔)
-/// 여행 이름은 여행 전환 시트, 인원은 동행자 시트를 연다. 탭은 화면 이동만, 동그라미는 영수증 스캔.
+/// 가운데 점 왼쪽은 여행 전환 시트, 오른쪽은 동행자 시트를 연다. 탭은 화면 이동만, 동그라미는 영수증 스캔.
 /// 분석·확인·정산 같은 화면은 이 셸 밖(루트 내비게이터)에 있어서 열리면 바를 덮는다.
 ///
 /// 푸시 알림도 여기서 받는다: 누르면 그 여행으로 가고, 앱을 보고 있을 때 오면 스낵바로 보여준다.
@@ -218,8 +218,9 @@ class _FloatingBar extends ConsumerWidget {
   }
 }
 
-/// 회색 캡슐. 가운데에 "여행 이름 · N명". 이름 쪽(과 빈 곳)을 누르면 여행 전환, "· N명"을 누르면 동행자.
-class _TripChip extends StatelessWidget {
+/// 회색 캡슐. 가운데에 "여행 이름 · N명".
+/// 가운데 점보다 왼쪽(빈 곳 포함)을 누르면 여행 전환, 오른쪽을 누르면 동행자.
+class _TripChip extends StatefulWidget {
   const _TripChip(
       {required this.name,
       required this.memberCount,
@@ -232,56 +233,85 @@ class _TripChip extends StatelessWidget {
   final VoidCallback onMembers;
 
   @override
+  State<_TripChip> createState() => _TripChipState();
+}
+
+class _TripChipState extends State<_TripChip> {
+  /// 왼쪽·오른쪽을 가르는 가운데 점.
+  final _dot = GlobalKey();
+
+  /// 방금 누른 곳이 점의 오른쪽이다.
+  bool _members = false;
+
+  void _down(PointerDownEvent event) {
+    final dot = _dot.currentContext?.findRenderObject() as RenderBox?;
+    _members = dot != null &&
+        event.position.dx >= dot.localToGlobal(dot.size.center(Offset.zero)).dx;
+  }
+
+  void _tap() {
+    final members = _members;
+    // 화면 낭독기로 누르면 손가락이 닿지 않으니 다음 탭은 다시 여행 쪽에서 시작한다.
+    _members = false;
+    members ? widget.onMembers() : widget.onTrip?.call();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final count = memberCount;
-    return Pressable(
-      scale: 0.97,
-      onTap: onTrip,
-      semanticLabel: '여행 바꾸기',
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        decoration: const ShapeDecoration(
-          color: AppColors.background,
-          shape: StadiumBorder(),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Flexible(
-              child: Center(
-                widthFactor: 1,
-                child: Text(name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.text)),
+    final count = widget.memberCount;
+    final name = widget.name;
+    const countStyle = TextStyle(
+        fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textSub);
+    return Listener(
+      onPointerDown: _down,
+      child: Pressable(
+        scale: 0.97,
+        onTap: widget.onTrip == null && count == null ? null : _tap,
+        semanticLabel: '여행 바꾸기',
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: const ShapeDecoration(
+            color: AppColors.background,
+            shape: StadiumBorder(),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Flexible(
+                child: Center(
+                  widthFactor: 1,
+                  child: Text(name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.text)),
+                ),
               ),
-            ),
-            if (count != null)
-              Semantics(
-                button: true,
-                label: '동행자 $count명',
-                excludeSemantics: true,
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: onMembers,
+              if (count != null)
+                Semantics(
+                  button: true,
+                  label: '동행자 $count명',
+                  onTap: widget.onMembers,
+                  excludeSemantics: true,
                   child: Padding(
                     padding: const EdgeInsets.only(left: 4, right: 2),
                     child: Center(
                       widthFactor: 1,
-                      child: Text('· $count명',
-                          style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.textSub)),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text('·', key: _dot, style: countStyle),
+                          Text(' $count명', style: countStyle),
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              ),
-          ],
+            ],
+          ),
         ),
       ),
     );

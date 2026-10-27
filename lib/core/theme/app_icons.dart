@@ -61,7 +61,6 @@ abstract final class AppIcons {
   static const key = PhosphorIconsRegular.key;
   static const bell = PhosphorIconsRegular.bell;
   static const bellRinging = PhosphorIconsRegular.bellRinging;
-  static const document = PhosphorIconsRegular.fileText;
   static const bag = PhosphorIconsRegular.shoppingBag;
   static const stats = PhosphorIconsRegular.chartPieSlice;
   static const statsFill = PhosphorIconsFill.chartPieSlice;

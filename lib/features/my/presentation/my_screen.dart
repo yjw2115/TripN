@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../../app_providers.dart';
 import '../../../core/theme/app_theme.dart';
@@ -11,7 +12,15 @@ import '../../trip/presentation/widgets/bank_picker.dart';
 import '../../trip/presentation/widgets/trip_widgets.dart';
 import '../../../core/theme/app_icons.dart';
 
-/// MY 탭. 새 여행에 쓸 내 이름과 받을 계좌, 알림 설정, 앱 정보.
+/// 앱 버전과 빌드 번호. pubspec의 version 그대로 `1.0.0+11` 꼴.
+final appVersionProvider = FutureProvider<String>((ref) async {
+  final info = await PackageInfo.fromPlatform();
+  return info.buildNumber.isEmpty
+      ? info.version
+      : '${info.version}+${info.buildNumber}';
+});
+
+/// MY 탭. 새 여행에 쓸 내 이름과 받을 계좌, 알림 설정, 앱 버전.
 /// 이름과 계좌는 여행마다 멤버에 따로 저장되니, 여기 값은 새 여행을 만들거나 참여할 때 채워 넣는 기본값이다.
 class MyScreen extends ConsumerWidget {
   const MyScreen({super.key});
@@ -81,43 +90,50 @@ class MyScreen extends ConsumerWidget {
     final me = ref.watch(myMemberProvider).value;
     final name = _name(profile, me);
     final account = profile.account;
+    final version = ref.watch(appVersionProvider).value;
     return Scaffold(
       body: SafeArea(
         bottom: false,
-        child: ListView(
-          padding: EdgeInsets.fromLTRB(
-              16, 8, 16, MediaQuery.paddingOf(context).bottom + 24),
-          children: [
-            _ProfileCard(name: name, onTap: () => _editName(context, ref, name)),
-            const SizedBox(height: 12),
-            SectionCard(children: [
-              _Row(
-                leading: account == null
-                    ? const Icon(AppIcons.bank,
-                        color: AppColors.textSub)
-                    : BankIcon(account.bank, size: 28),
-                title: '받을 계좌',
-                subtitle: account?.display ?? '등록해 두면 새 여행에 자동으로 들어가요',
-                onTap: () => _editAccount(context, ref, profile, name),
+        child: CustomScrollView(
+          slivers: [
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              sliver: SliverList.list(children: [
+                _ProfileCard(
+                    name: name, onTap: () => _editName(context, ref, name)),
+                const SizedBox(height: 12),
+                SectionCard(children: [
+                  _Row(
+                    leading: account == null
+                        ? const Icon(AppIcons.bank,
+                            color: AppColors.textSub)
+                        : BankIcon(account.bank, size: 28),
+                    title: '받을 계좌',
+                    subtitle: account?.display ?? '등록해 두면 새 여행에 자동으로 들어가요',
+                    onTap: () => _editAccount(context, ref, profile, name),
+                  ),
+                  _Row(
+                    leading: const Icon(AppIcons.bell,
+                        color: AppColors.textSub),
+                    title: '알림',
+                    subtitle: _notifySummary(profile),
+                    onTap: () => context.push('/notifications'),
+                  ),
+                ]),
+              ]),
+            ),
+            // 버전은 화면 맨 아래(떠 있는 바 바로 위)에 둔다. 내용이 길어지면 그 뒤로 밀린다.
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: Container(
+                alignment: Alignment.bottomCenter,
+                padding: EdgeInsets.fromLTRB(
+                    16, 32, 16, MediaQuery.paddingOf(context).bottom + 16),
+                child: Text(version ?? '',
+                    style: const TextStyle(
+                        fontSize: 12, color: AppColors.textHint)),
               ),
-              _Row(
-                leading: const Icon(AppIcons.bell,
-                    color: AppColors.textSub),
-                title: '알림',
-                subtitle: _notifySummary(profile),
-                onTap: () => context.push('/notifications'),
-              ),
-            ]),
-            const SizedBox(height: 12),
-            SectionCard(children: [
-              _Row(
-                leading: const Icon(AppIcons.document,
-                    color: AppColors.textSub),
-                title: '오픈소스 라이선스',
-                onTap: () => showLicensePage(
-                    context: context, applicationName: '여행N'),
-              ),
-            ]),
+            ),
           ],
         ),
       ),

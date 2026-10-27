@@ -56,6 +56,8 @@ dependencies:
   firebase_messaging: 17.0.0
   # 머티리얼 아이콘 대신 쓰는 아이콘 (둥근 선·채움). lib/core/theme/app_icons.dart에서만 꺼내 쓴다.
   phosphor_flutter: ^2.1.0
+  # MY 탭 아래에 앱 버전·빌드 번호를 보여 준다.
+  package_info_plus: ^10.2.2
 
 dev_dependencies:
   flutter_test:
