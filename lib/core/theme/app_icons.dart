@@ -63,6 +63,11 @@ abstract final class AppIcons {
   static const bellRinging = PhosphorIconsRegular.bellRinging;
   static const document = PhosphorIconsRegular.fileText;
   static const bag = PhosphorIconsRegular.shoppingBag;
+  static const stats = PhosphorIconsRegular.chartPieSlice;
+  static const statsFill = PhosphorIconsFill.chartPieSlice;
+  static const chartBar = PhosphorIconsRegular.chartBar;
+  static const crown = PhosphorIconsFill.crownSimple;
+  static const coins = PhosphorIconsRegular.coins;
 
   // 지출 분류 (CategoryBadge)
   static const food = PhosphorIconsFill.forkKnife;

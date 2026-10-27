@@ -16,6 +16,7 @@ import 'features/receipt/presentation/receipt_review_screen.dart';
 import 'features/settlement/presentation/bet_game_screen.dart';
 import 'features/settlement/presentation/bet_setup_screen.dart';
 import 'features/settlement/presentation/settlement_screen.dart';
+import 'features/stats/presentation/stats_screen.dart';
 import 'features/trip/presentation/join_trip_screen.dart';
 import 'features/trip/presentation/trip_screen.dart';
 
@@ -27,6 +28,10 @@ final _router = GoRouter(
       branches: [
         StatefulShellBranch(routes: [
           GoRoute(path: '/', builder: (context, state) => const HomeScreen()),
+        ]),
+        StatefulShellBranch(routes: [
+          GoRoute(
+              path: '/stats', builder: (context, state) => const StatsScreen()),
         ]),
         StatefulShellBranch(routes: [
           GoRoute(path: '/my', builder: (context, state) => const MyScreen()),

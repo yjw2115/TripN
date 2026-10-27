@@ -1,10 +1,28 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../app_providers.dart';
 import '../../../core/ui/app_dialog.dart';
 import '../../../core/ui/toast.dart';
+import '../../receipt/presentation/receipt_review_screen.dart';
 import '../../trip/presentation/widgets/trip_widgets.dart';
+import '../domain/expense.dart';
+
+/// 저장한 지출을 확인 화면에서 열어 고친다 (지출 목록, 통계의 큰 지출).
+/// 품목 없이 남긴 예전 지출처럼 영수증이 없으면 열 화면이 없어서 null.
+VoidCallback? expenseOpener(BuildContext context, Expense expense) {
+  final receipt = expense.receipt;
+  if (receipt == null) return null;
+  return () => context.push('/review',
+      extra: ReviewArgs(
+          receipt: receipt,
+          expenseId: expense.id,
+          payerId: expense.payerId,
+          participantIds: expense.participantIds,
+          rate: expense.rate,
+          settled: expense.isSettled));
+}
 
 /// 지출을 지운다 (목록에서 밀거나 길게 누를 때, 지출 수정 화면의 삭제).
 /// 동행자 모두에게서 사라지고 되돌릴 수 없어서 먼저 묻는다. 지웠으면 true.

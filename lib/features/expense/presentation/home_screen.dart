@@ -11,7 +11,6 @@ import '../../../core/money/money_format.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../receipt/presentation/capture.dart';
 import '../../receipt/domain/receipt.dart';
-import '../../receipt/presentation/receipt_review_screen.dart';
 import '../../receipt/presentation/widgets/category_badge.dart';
 import '../../settlement/domain/settlement.dart';
 import '../../trip/domain/trip.dart';
@@ -407,16 +406,7 @@ class _ExpenseTile extends ConsumerWidget {
             ),
         ],
       ),
-      onTap: receipt == null
-          ? null
-          : () => context.push('/review',
-              extra: ReviewArgs(
-                  receipt: receipt,
-                  expenseId: expense.id,
-                  payerId: expense.payerId,
-                  participantIds: expense.participantIds,
-                  rate: expense.rate,
-                  settled: settled)),
+      onTap: expenseOpener(context, expense),
       onLongPress: () => _delete(context, ref),
     );
   }

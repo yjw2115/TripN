@@ -13,6 +13,15 @@ String formatMoney(int minor, Currency currency, {bool withSymbol = true}) {
   return '${currency.symbol}$text';
 }
 
+/// 그래프처럼 좁은 곳에 쓸 짧은 원화: "9,800", "4.5만", "123만", "1.2억".
+String formatWonCompact(int krw) {
+  String trim(double v) =>
+      v < 100 ? v.toStringAsFixed(1).replaceFirst(RegExp(r'\.0$'), '') : '${v.round()}';
+  if (krw.abs() < 10000) return NumberFormat('#,##0', 'en_US').format(krw);
+  if (krw.abs() < 100000000) return '${trim(krw / 10000)}만';
+  return '${trim(krw / 100000000)}억';
+}
+
 /// 입력창에 보여줄 숫자 (천 단위 구분 없이).
 String formatMoneyPlain(int minor, Currency currency) {
   final major = currency.toMajor(minor);

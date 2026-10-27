@@ -18,9 +18,9 @@ import 'features/trip/presentation/widgets/trip_widgets.dart';
 import 'core/theme/app_icons.dart';
 import 'core/ui/toast.dart';
 
-/// 지출·MY 두 탭을 담고, 화면 아래에 떠 있는 바를 둔다.
+/// 지출·통계·MY 세 탭을 담고, 화면 아래에 떠 있는 바를 둔다.
 ///
-/// 바: [여행 이름 · 인원 | 지출 | MY]  (스캔)
+/// 바: [여행 이름 · 인원 | 지출 | 통계 | MY]  (스캔)
 /// 여행 이름은 여행 전환 시트, 인원은 동행자 시트를 연다. 탭은 화면 이동만, 동그라미는 영수증 스캔.
 /// 분석·확인·정산 같은 화면은 이 셸 밖(루트 내비게이터)에 있어서 열리면 바를 덮는다.
 ///
@@ -288,13 +288,15 @@ class _TripChip extends StatelessWidget {
   }
 }
 
-/// 지출·MY 탭. 고른 탭 뒤로 연한 초록 캡슐이 미끄러진다.
+/// 지출·통계·MY 탭. 고른 탭 뒤로 연한 초록 캡슐이 미끄러진다.
+/// 탭이 셋이라 여행 이름 자리를 남기려고 조금 좁게 둔다.
 class _Tabs extends StatelessWidget {
   const _Tabs({required this.index, required this.onTab});
 
-  static const _width = 56.0;
+  static const _width = 52.0;
   static const _items = [
     (label: '지출', icon: AppIcons.receipt, selected: AppIcons.receiptFill),
+    (label: '통계', icon: AppIcons.stats, selected: AppIcons.statsFill),
     (label: 'MY', icon: AppIcons.user, selected: AppIcons.userFill),
   ];
 
