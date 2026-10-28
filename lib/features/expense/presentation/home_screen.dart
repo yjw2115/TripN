@@ -10,15 +10,14 @@ import '../../../core/money/currency.dart';
 import '../../../core/money/money_format.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../receipt/presentation/capture.dart';
-import '../../receipt/domain/receipt.dart';
 import '../../receipt/presentation/widgets/category_badge.dart';
-import '../../settlement/domain/settlement.dart';
 import '../../trip/domain/trip.dart';
 import '../../trip/presentation/members_sheet.dart';
 import '../domain/expense.dart';
 import '../../../core/theme/app_icons.dart';
 import 'expense_actions.dart';
 import '../../../core/ui/controls.dart';
+import '../../../core/ui/pressable.dart';
 
 /// 지출 탭. 앱바 없이 맨 위부터 요약 카드와 지출 목록을 보여준다.
 /// 여행 이름·인원·스캔 버튼은 아래 플로팅 바(app_shell.dart)에 있다.
@@ -63,11 +62,14 @@ class _ExpenseList extends StatelessWidget {
       padding: EdgeInsets.fromLTRB(16, 8, 16, bottom),
       children: [
         _SummaryCard(expenses: expenses),
-        const SizedBox(height: 12),
-        const _QuickActions(),
-        for (final day in byDay.entries) ...[
+        const Padding(
+          padding: EdgeInsets.fromLTRB(4, 28, 4, 0),
+          child: Text('지출 내역',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+        ),
+        for (final (i, day) in byDay.entries.indexed) ...[
           Padding(
-            padding: const EdgeInsets.fromLTRB(4, 24, 4, 8),
+            padding: EdgeInsets.fromLTRB(4, i == 0 ? 12 : 24, 4, 8),
             child: Text(DateFormat('M월 d일 EEEE', 'ko').format(day.key),
                 style: const TextStyle(
                     fontSize: 14,
@@ -90,18 +92,21 @@ class _ExpenseList extends StatelessWidget {
   }
 }
 
-/// 지출할 때 고정한 환율로 원화 합계를 보여주고, 통화별 합계는 그 아래 작게 둔다.
-/// 맨 아래 줄은 정산으로 가는 입구: 동행자가 있으면 누가 누구에게 보낼지 미리 보여주고,
-/// 혼자면 동행자를 추가하라고 알려준다.
+/// 맨 위 요약 칸. 지출 목록과 구분되도록 연한 초록 바탕 한 덩어리에 원화 합계, 정산 입구,
+/// 지출을 남기는 다른 길(직접 입력·앨범·메뉴판)을 묶는다.
+/// 합계는 지출할 때 고정한 환율로 더하고, 통화별 합계는 그 아래 작게 둔다.
+/// 합계 오른쪽은 동행자가 있으면 정산하기, 혼자면 동행자 추가.
 class _SummaryCard extends ConsumerWidget {
   const _SummaryCard({required this.expenses});
 
   final List<Expense> expenses;
 
+  /// 회색 바탕에서 또렷이 보이도록 primaryLight보다 조금 진한 초록 (primary 35% + 흰색).
+  static const _tint = Color(0xFFE6F5E0);
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final members = ref.watch(membersProvider).value;
-    final trip = ref.watch(currentTripProvider).value;
     final totals = <Currency, int>{};
     var krwTotal = 0;
     var withoutRate = 0;
@@ -119,116 +124,109 @@ class _SummaryCard extends ConsumerWidget {
     final format = DateFormat('M.d');
     final first = format.format(days.first);
     final last = format.format(days.last);
-    final showsSettle = members != null && trip != null;
     return Container(
-      // 정산 줄은 자체 여백이 있어서 카드 아래 여백을 줄인다.
-      padding: EdgeInsets.fromLTRB(20, 18, 20, showsSettle ? 6 : 20),
+      padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
       decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(20),
+        color: _tint,
+        borderRadius: BorderRadius.circular(24),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Text('지출 ${expenses.length}건',
-                  style:
-                      const TextStyle(fontSize: 14, color: AppColors.textSub)),
-              const Spacer(),
-              Text(first == last ? first : '$first – $last',
-                  style:
-                      const TextStyle(fontSize: 13, color: AppColors.textHint)),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(formatMoney(krwTotal, Currency.krw),
-              style: const TextStyle(
-                  fontSize: 26,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: -0.5)),
-          if (!onlyKrw)
-            Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Text(
-                [for (final t in totals.entries) formatMoney(t.value, t.key)]
-                    .join(' · '),
-                style: const TextStyle(fontSize: 14, color: AppColors.textHint),
-              ),
-            ),
-          if (withoutRate > 0)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Text('환율을 아직 정하지 못한 지출 $withoutRate건은 빠져 있어요',
-                  style:
-                      const TextStyle(fontSize: 13, color: AppColors.warning)),
-            ),
-          if (showsSettle) ...[
-            const SizedBox(height: 12),
-            const Divider(height: 1, color: AppColors.border),
-            members.length > 1
-                ? _SettleRow(
-                    text: _settlePreview(trip, members),
-                    action: '정산하기',
-                    onTap: () => context.push('/settlement'),
-                  )
-                : _SettleRow(
-                    text: '동행자를 추가하면 같이 정산할 수 있어요',
-                    action: '추가',
-                    onTap: () => showMembersSheet(context),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text('지출 ${expenses.length}건',
+                        style: const TextStyle(
+                            fontSize: 14, color: AppColors.textSub)),
+                    const Spacer(),
+                    Text(first == last ? first : '$first – $last',
+                        style: const TextStyle(
+                            fontSize: 13, color: AppColors.textHint)),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(formatMoney(krwTotal, Currency.krw),
+                          style: const TextStyle(
+                              fontSize: 26,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: -0.5)),
+                    ),
+                    if (members != null)
+                      members.length > 1
+                          ? _SettleButton(
+                              label: '정산하기',
+                              onTap: () => context.push('/settlement'),
+                            )
+                          : _SettleButton(
+                              label: '동행자 추가',
+                              onTap: () => showMembersSheet(context),
+                            ),
+                  ],
+                ),
+                if (!onlyKrw)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      [
+                        for (final t in totals.entries)
+                          formatMoney(t.value, t.key)
+                      ].join(' · '),
+                      style: const TextStyle(
+                          fontSize: 14, color: AppColors.textHint),
+                    ),
                   ),
-          ],
+                if (withoutRate > 0)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                        '환율을 아직 정하지 못한 지출 $withoutRate건은 빠져 있어요',
+                        style: const TextStyle(
+                            fontSize: 13, color: AppColors.warning)),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          const _QuickActions(),
         ],
       ),
     );
   }
-
-  /// 정산 화면을 열면 처음 보이는 것(아직 정산 전인 지출 모두, 내기 반영)과 같은 계산.
-  String _settlePreview(Trip trip, List<Member> members) {
-    if (expenses.every((e) => e.isSettled)) return '모두 정산했어요';
-    final transfers =
-        settle(expenses, members, bet: trip.settlementBet).transfers;
-    if (transfers.isEmpty) return '보낼 돈이 없어요';
-    final t = transfers.first;
-    final more = transfers.length > 1 ? ' 외 ${transfers.length - 1}건' : '';
-    return '${t.from.name} → ${t.to.name} '
-        '${formatMoney(t.amount, Currency.krw)}$more';
-  }
 }
 
-class _SettleRow extends StatelessWidget {
-  const _SettleRow(
-      {required this.text, required this.action, required this.onTap});
+/// 합계 오른쪽의 글자 버튼.
+class _SettleButton extends StatelessWidget {
+  const _SettleButton({required this.label, required this.onTap});
 
-  final String text;
-  final String action;
+  final String label;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
+    return Pressable(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12),
+        // 글자보다 누르는 자리를 넓게 잡는다.
+        padding: const EdgeInsets.fromLTRB(12, 10, 0, 10),
         child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(AppIcons.transfer,
-                size: 20, color: AppColors.primaryDeep),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(text,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style:
-                      const TextStyle(fontSize: 14, color: AppColors.textSub)),
-            ),
-            const SizedBox(width: 8),
-            Text('$action ›',
+            Text(label,
                 style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
                     color: AppColors.primaryDeep)),
+            const SizedBox(width: 2),
+            const Icon(AppIcons.chevronRight,
+                size: 14, color: AppColors.primaryDeep),
           ],
         ),
       ),
@@ -320,8 +318,6 @@ class _ExpenseTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final receipt = expense.receipt;
-    final itemCount = receipt?.items.length ?? 0;
     final members = ref.watch(membersProvider).value ?? const [];
     final payer = members.length > 1
         ? members.firstWhereOrNull((m) => m.id == expense.payerId)
@@ -356,12 +352,12 @@ class _ExpenseTile extends ConsumerWidget {
           ],
         ),
       ),
-      child: _tile(context, ref, receipt, itemCount, payer, settled, amountStyle),
+      child: _tile(context, ref, payer, settled, amountStyle),
     );
   }
 
-  Widget _tile(BuildContext context, WidgetRef ref, Receipt? receipt,
-      int itemCount, Member? payer, bool settled, TextStyle amountStyle) {
+  Widget _tile(BuildContext context, WidgetRef ref, Member? payer, bool settled,
+      TextStyle amountStyle) {
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
       leading: Opacity(
@@ -375,13 +371,11 @@ class _ExpenseTile extends ConsumerWidget {
               fontSize: 16,
               fontWeight: FontWeight.w600,
               color: settled ? AppColors.textHint : null)),
+      // 날짜는 위 머리글에 있으니 시각과 결제한 사람만 적는다.
       subtitle: Text(
         [
           if (settled) '정산 완료',
           DateFormat('HH:mm').format(expense.paidAt),
-          if (expense.source == 'menu') '메뉴판 주문',
-          if (expense.source == 'manual') '직접 입력',
-          if (itemCount > 0) '품목 $itemCount개',
           if (payer != null) '${payer.name} 결제',
         ].join(' · '),
         style: const TextStyle(fontSize: 13, color: AppColors.textHint),
