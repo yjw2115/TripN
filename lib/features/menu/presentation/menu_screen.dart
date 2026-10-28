@@ -178,6 +178,7 @@ class _MenuScreenState extends ConsumerState<MenuScreen> {
                   () => _warnings = [..._warnings]..remove(w)),
             ),
           ],
+          if (menu.items.isNotEmpty) const _EditHint(),
           for (final (section, items) in menu.sections) ...[
             if (section.isNotEmpty)
               Padding(
@@ -341,6 +342,33 @@ class _WarningBanner extends StatelessWidget {
   }
 }
 
+/// 메뉴판을 잘못 읽었을 때 메뉴를 눌러 고칠 수 있다고 알려 준다.
+class _EditHint extends StatelessWidget {
+  const _EditHint();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.primaryLight,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: const Row(
+        children: [
+          Icon(AppIcons.edit, size: 18, color: AppColors.primaryDeep),
+          SizedBox(width: 8),
+          Expanded(
+            child: Text('이름이나 가격이 메뉴판과 다르면 메뉴를 눌러서 고칠 수 있어요',
+                style: TextStyle(fontSize: 14, color: AppColors.textSub)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _MenuItemRow extends StatelessWidget {
   const _MenuItemRow({
     required this.item,
@@ -374,11 +402,23 @@ class _MenuItemRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(item.displayName,
-                      style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: quantity > 0 ? AppColors.primaryDeep : AppColors.text)),
+                  // 연필은 잘못 읽은 이름·가격을 눌러서 고칠 수 있다는 표시.
+                  Text.rich(
+                    TextSpan(children: [
+                      TextSpan(text: item.displayName),
+                      const WidgetSpan(
+                        alignment: PlaceholderAlignment.middle,
+                        child: Padding(
+                          padding: EdgeInsets.only(left: 4),
+                          child: Icon(AppIcons.edit, size: 15, color: AppColors.textHint),
+                        ),
+                      ),
+                    ]),
+                    style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: quantity > 0 ? AppColors.primaryDeep : AppColors.text),
+                  ),
                   if (showOriginal)
                     Text(item.name,
                         style: const TextStyle(fontSize: 13, color: AppColors.textHint)),
@@ -392,7 +432,9 @@ class _MenuItemRow extends StatelessWidget {
                   Text.rich(
                     TextSpan(children: [
                       TextSpan(
-                        text: hasPrice ? formatMoney(item.priceMinor, currency) : '가격 없음',
+                        text: hasPrice
+                            ? formatMoney(item.priceMinor, currency)
+                            : '가격 없음 · 눌러서 입력',
                         style: TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w600,

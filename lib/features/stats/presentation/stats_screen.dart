@@ -346,7 +346,7 @@ class _Figure extends StatelessWidget {
   }
 }
 
-/// 분류별 비율: 가운데에 총액을 둔 원형 그래프와, 많이 쓴 분류부터 퍼센트·금액 목록.
+/// 분류별 비율: 가운데에 총액을 둔 원형 그래프와, 많이 쓴 분류부터 금액·퍼센트 목록.
 /// 그래프 조각이나 목록 줄을 누르면 그 분류를 고른다 (다시 누르면 풀린다).
 class _CategoryCard extends StatelessWidget {
   const _CategoryCard(
@@ -376,8 +376,13 @@ class _CategoryCard extends StatelessWidget {
           child: DonutChart(
             animationKey: mine,
             slices: [
+              // 그래프 옆 이름표는 짧게: '카페·간식'은 '카페'로.
               for (final c in categories)
-                (color: c.category.color, value: c.krw),
+                (
+                  color: c.category.color,
+                  value: c.krw,
+                  label: c.category.label.split('·').first,
+                ),
             ],
             selected: picked == null ? null : index,
             onSelect: (i) => i == null
@@ -393,9 +398,8 @@ class _CategoryCard extends StatelessWidget {
                     icon: picked.category.icon,
                     iconColor: picked.category.color,
                     title: picked.category.label,
-                    value: _percent(picked.percent),
-                    caption: _won(picked.krw),
-                    large: true,
+                    value: _won(picked.krw),
+                    caption: _percent(picked.percent),
                   ),
           ),
         ),
@@ -420,7 +424,6 @@ class _DonutCenter extends StatelessWidget {
     required this.caption,
     this.icon,
     this.iconColor,
-    this.large = false,
   });
 
   final String title;
@@ -428,9 +431,6 @@ class _DonutCenter extends StatelessWidget {
   final String caption;
   final IconData? icon;
   final Color? iconColor;
-
-  /// 퍼센트처럼 짧은 값은 크게.
-  final bool large;
 
   @override
   Widget build(BuildContext context) {
@@ -450,8 +450,8 @@ class _DonutCenter extends StatelessWidget {
           fit: BoxFit.scaleDown,
           child: Text(value,
               maxLines: 1,
-              style: TextStyle(
-                  fontSize: large ? 28 : 20,
+              style: const TextStyle(
+                  fontSize: 20,
                   fontWeight: FontWeight.w700,
                   letterSpacing: -0.5,
                   color: AppColors.text)),
@@ -539,10 +539,10 @@ class _CategoryRow extends StatelessWidget {
         Column(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            Text(_percent(spend.percent),
+            Text(_won(spend.krw),
                 style: const TextStyle(
                     fontSize: 16, fontWeight: FontWeight.w700)),
-            Text(_won(spend.krw),
+            Text(_percent(spend.percent),
                 style: const TextStyle(
                     fontSize: 13, color: AppColors.textHint)),
           ],
@@ -731,7 +731,7 @@ class _TopRow extends StatelessWidget {
   }
 }
 
-/// 누가 얼마나 결제했는지. 막대는 모두가 결제한 돈 중 그 사람 비율.
+/// 각자 몫으로 얼마나 썼는지. 막대는 모두의 몫 중 그 사람 비율, 금액 아래에 직접 결제한 금액.
 class _MembersCard extends StatelessWidget {
   const _MembersCard({required this.members});
 
@@ -739,21 +739,21 @@ class _MembersCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final sorted = [...members]..sort((a, b) => b.paid.compareTo(a.paid));
-    final totalPaid = members.fold(0, (sum, m) => sum + m.paid);
+    final sorted = [...members]..sort((a, b) => b.used.compareTo(a.used));
+    final totalUsed = members.fold(0, (sum, m) => sum + m.used);
     return SectionCard(
-      title: '누가 얼마나 냈을까',
+      title: '누가 얼마나 썼을까',
       children: [
         for (final (i, m) in sorted.indexed)
           _MemberRow(
             spend: m,
-            ratio: totalPaid == 0 ? 0 : m.paid / totalPaid,
-            top: i == 0 && m.paid > 0,
+            ratio: totalUsed == 0 ? 0 : m.used / totalUsed,
+            top: i == 0 && m.used > 0,
           ),
         const Padding(
           padding: EdgeInsets.only(top: 6, bottom: 6),
           child: Text(
-            '낸 돈은 직접 결제한 금액, 쓴 돈은 품목과 함께한 사람대로 나눈 각자 몫이에요. '
+            '굵은 금액은 품목과 함께한 사람대로 나눈 각자 몫, 결제액은 직접 결제한 금액이에요. '
             '미리 정산한 지출도 들어 있어요.',
             style:
                 TextStyle(fontSize: 12, color: AppColors.textHint, height: 1.4),
@@ -771,7 +771,7 @@ class _MemberRow extends StatelessWidget {
   final MemberSpend spend;
   final double ratio;
 
-  /// 가장 많이 결제한 사람이면 이름 옆에 왕관.
+  /// 자기 몫으로 가장 많이 쓴 사람이면 이름 옆에 왕관.
   final bool top;
 
   static const _gold = Color(0xFFF5B400);
@@ -832,10 +832,10 @@ class _MemberRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text(_won(spend.paid),
+                Text(_won(spend.used),
                     style: const TextStyle(
                         fontSize: 15, fontWeight: FontWeight.w700)),
-                Text('쓴 돈 ${_won(spend.used)}',
+                Text('결제액 ${_won(spend.paid)}',
                     style: const TextStyle(
                         fontSize: 12, color: AppColors.textHint)),
               ],

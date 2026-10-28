@@ -73,7 +73,7 @@ void main() {
     expect(find.text('73%'), findsOneWidget);
     expect(find.text('17%'), findsOneWidget);
     expect(find.text('10%'), findsOneWidget);
-    expect(find.text('누가 얼마나 냈을까'), findsOneWidget);
+    expect(find.text('누가 얼마나 썼을까'), findsOneWidget);
     expect(find.text('화폐별'), findsOneWidget);
     expect(find.text('평균 ¥100 = 900원'), findsOneWidget);
   });
@@ -106,7 +106,7 @@ void main() {
     expect(find.text('내가 쓴 돈'), findsOneWidget);
     expect(find.text('184,500원'), findsWidgets);
     expect(find.textContaining('1인 평균보다 20,000원 덜 썼어요'), findsOneWidget);
-    expect(find.text('누가 얼마나 냈을까'), findsNothing);
+    expect(find.text('누가 얼마나 썼을까'), findsNothing);
   });
 
   testWidgets('a solo trip has no scope toggle or members card',
@@ -117,7 +117,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('내 몫'), findsNothing);
-    expect(find.text('누가 얼마나 냈을까'), findsNothing);
+    expect(find.text('누가 얼마나 썼을까'), findsNothing);
     expect(find.text('1인 평균'), findsNothing);
   });
 
