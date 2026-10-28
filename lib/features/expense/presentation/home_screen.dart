@@ -11,8 +11,10 @@ import '../../../core/money/money_format.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../receipt/presentation/capture.dart';
 import '../../receipt/presentation/widgets/category_badge.dart';
+import '../../receipt/presentation/widgets/edit_sheets.dart';
 import '../../trip/domain/trip.dart';
 import '../../trip/presentation/members_sheet.dart';
+import '../../trip/presentation/widgets/trip_widgets.dart';
 import '../domain/expense.dart';
 import '../../../core/theme/app_icons.dart';
 import 'expense_actions.dart';
@@ -46,27 +48,107 @@ class HomeScreen extends ConsumerWidget {
   }
 }
 
-class _ExpenseList extends StatelessWidget {
+/// 요약 칸과 날짜별 지출 목록. 목록 위에서 결제한 사람으로 거르고 이름으로 찾는다.
+/// 요약 칸의 합계는 거르기와 상관없이 여행 전체다.
+class _ExpenseList extends ConsumerStatefulWidget {
   const _ExpenseList({required this.expenses});
 
   final List<Expense> expenses;
 
   @override
+  ConsumerState<_ExpenseList> createState() => _ExpenseListState();
+}
+
+class _ExpenseListState extends ConsumerState<_ExpenseList> {
+  /// 이 사람이 결제한 지출만 본다. null이면 전체.
+  String? _payerId;
+  bool _searching = false;
+  late final _query = TextEditingController()..addListener(() => setState(() {}));
+
+  @override
+  void dispose() {
+    _query.dispose();
+    super.dispose();
+  }
+
+  /// 지출 이름, 분류, 가게 이름, 품목 이름(원문·번역)에서 찾는다.
+  static bool _matches(Expense e, String query) {
+    bool has(String s) => s.toLowerCase().contains(query);
+    final receipt = e.receipt;
+    return has(e.title) ||
+        has(e.category.label) ||
+        (receipt != null &&
+            (has(receipt.merchantName) ||
+                receipt.items.any((i) => has(i.name) || has(i.nameKo))));
+  }
+
+  Future<void> _pickPayer(List<Member> members) async {
+    final picked = await showAppSheet<String>(
+        context, (context) => _PayerFilterSheet(members: members, current: _payerId));
+    if (picked == null || !mounted) return;
+    setState(() => _payerId = picked.isEmpty ? null : picked);
+  }
+
+  void _toggleSearch() => setState(() {
+        _searching = !_searching;
+        if (!_searching) _query.clear();
+      });
+
+  @override
   Widget build(BuildContext context) {
+    final expenses = widget.expenses;
     // 플로팅 바 높이만큼 아래를 띄운다 (AppShell이 extendBody라 MediaQuery에 들어 있다).
     final bottom = MediaQuery.paddingOf(context).bottom + 24;
     if (expenses.isEmpty) return _EmptyView(bottomPadding: bottom);
-    final byDay = groupBy(expenses,
+    final members = ref.watch(membersProvider).value ?? const <Member>[];
+    // 혼자인 여행이거나 고른 사람이 여행에서 빠졌으면 전체를 본다.
+    final payer = members.length > 1
+        ? members.firstWhereOrNull((m) => m.id == _payerId)
+        : null;
+    final query = _query.text.trim();
+    final shown = [
+      for (final e in expenses)
+        if ((payer == null || e.payerId == payer.id) &&
+            (query.isEmpty || _matches(e, query.toLowerCase())))
+          e,
+    ];
+    final byDay = groupBy(shown,
         (Expense e) => DateTime(e.paidAt.year, e.paidAt.month, e.paidAt.day));
     return ListView(
       padding: EdgeInsets.fromLTRB(16, 8, 16, bottom),
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       children: [
         _SummaryCard(expenses: expenses),
-        const Padding(
-          padding: EdgeInsets.fromLTRB(4, 28, 4, 0),
-          child: Text('지출 내역',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(4, 20, 0, 0),
+          child: Row(
+            children: [
+              if (members.length > 1)
+                _FilterButton(
+                  label: payer == null ? '전체' : '${payer.name} 결제',
+                  active: payer != null,
+                  onTap: () => _pickPayer(members),
+                )
+              else
+                const Text('지출 내역',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+              const Spacer(),
+              _SearchButton(active: _searching, onTap: _toggleSearch),
+            ],
+          ),
         ),
+        if (_searching) _SearchField(controller: _query, onCancel: _toggleSearch),
+        if (shown.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 48),
+            child: Text(
+              query.isNotEmpty
+                  ? "'$query' 검색 결과가 없어요"
+                  : '${payer?.name}님이 결제한 지출이 없어요',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 15, color: AppColors.textHint),
+            ),
+          ),
         for (final (i, day) in byDay.entries.indexed) ...[
           Padding(
             padding: EdgeInsets.fromLTRB(4, i == 0 ? 12 : 24, 4, 8),
@@ -92,7 +174,203 @@ class _ExpenseList extends StatelessWidget {
   }
 }
 
-/// 맨 위 요약 칸. 지출 목록과 구분되도록 연한 초록 바탕 한 덩어리에 원화 합계, 정산 입구,
+/// 목록 위 왼쪽의 "전체 ⌄". 누르면 결제한 사람을 고르는 시트를 연다.
+class _FilterButton extends StatelessWidget {
+  const _FilterButton(
+      {required this.label, required this.active, required this.onTap});
+
+  final String label;
+
+  /// 한 사람을 고른 상태면 초록 글자.
+  final bool active;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = active ? AppColors.primaryDeep : AppColors.text;
+    return Pressable(
+      onTap: onTap,
+      semanticLabel: '결제한 사람으로 거르기',
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(label,
+                style: TextStyle(
+                    fontSize: 18, fontWeight: FontWeight.w700, color: color)),
+            const SizedBox(width: 4),
+            Icon(AppIcons.chevronDown, size: 16, color: color),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 목록 위 오른쪽의 동그란 검색 버튼. 검색 중이면 초록으로 채운다.
+class _SearchButton extends StatelessWidget {
+  const _SearchButton({required this.active, required this.onTap});
+
+  final bool active;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Pressable(
+      onTap: onTap,
+      semanticLabel: active ? '검색 닫기' : '지출 검색',
+      child: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: active ? AppColors.primary : AppColors.surface,
+          shape: BoxShape.circle,
+        ),
+        child: Icon(AppIcons.search,
+            size: 18, color: active ? AppColors.onPrimary : AppColors.textSub),
+      ),
+    );
+  }
+}
+
+/// 검색어 칸. 지우기(×)와 검색을 끝내는 취소가 있다.
+class _SearchField extends StatelessWidget {
+  const _SearchField({required this.controller, required this.onCancel});
+
+  final TextEditingController controller;
+  final VoidCallback onCancel;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: Container(
+              height: 44,
+              padding: const EdgeInsets.only(left: 14, right: 4),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Row(
+                children: [
+                  const Icon(AppIcons.search,
+                      size: 16, color: AppColors.textHint),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: TextField(
+                      controller: controller,
+                      autofocus: true,
+                      textInputAction: TextInputAction.search,
+                      style: const TextStyle(fontSize: 15),
+                      // 바깥 흰 칸이 입력칸 모양이라, 테마의 회색 바탕·초록 테두리는 끈다.
+                      decoration: const InputDecoration(
+                        hintText: '지출·가게·품목 이름',
+                        isDense: true,
+                        filled: false,
+                        contentPadding: EdgeInsets.zero,
+                        border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                      ),
+                    ),
+                  ),
+                  if (controller.text.isNotEmpty)
+                    Pressable(
+                      onTap: controller.clear,
+                      semanticLabel: '검색어 지우기',
+                      child: const Padding(
+                        padding: EdgeInsets.all(10),
+                        child: Icon(AppIcons.close,
+                            size: 14, color: AppColors.textHint),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          Pressable(
+            onTap: onCancel,
+            child: const Padding(
+              padding: EdgeInsets.fromLTRB(14, 12, 4, 12),
+              child: Text('취소',
+                  style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textSub)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 누가 결제한 지출만 볼지 고른다. 전체는 빈 문자열을 돌려준다.
+class _PayerFilterSheet extends StatelessWidget {
+  const _PayerFilterSheet({required this.members, required this.current});
+
+  final List<Member> members;
+  final String? current;
+
+  @override
+  Widget build(BuildContext context) {
+    Widget check(bool on) => on
+        ? const Icon(AppIcons.check, color: AppColors.primaryDeep)
+        : const SizedBox.shrink();
+    return SafeArea(
+      top: false,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Padding(
+            padding: EdgeInsets.fromLTRB(24, 0, 24, 12),
+            child: Text('누가 결제한 지출을 볼까요?',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
+          ),
+          Flexible(
+            child: ListView(
+              shrinkWrap: true,
+              padding: const EdgeInsets.fromLTRB(8, 0, 8, 16),
+              children: [
+                ListTile(
+                  leading: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: const BoxDecoration(
+                        color: AppColors.background, shape: BoxShape.circle),
+                    child: const Icon(AppIcons.users,
+                        size: 20, color: AppColors.textSub),
+                  ),
+                  title: const Text('전체',
+                      style:
+                          TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                  trailing: check(current == null),
+                  onTap: () => Navigator.pop(context, ''),
+                ),
+                for (final m in members)
+                  ListTile(
+                    leading: MemberAvatar(m),
+                    title: Text('${m.name} 결제',
+                        style: const TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.w600)),
+                    trailing: check(m.id == current),
+                    onTap: () => Navigator.pop(context, m.id),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 맨 위 요약 칸. 지출 목록과 구분되도록 흰 칸 한 덩어리에 원화 합계, 정산 입구,
 /// 지출을 남기는 다른 길(직접 입력·앨범·메뉴판)을 묶는다.
 /// 합계는 지출할 때 고정한 환율로 더하고, 통화별 합계는 그 아래 작게 둔다.
 /// 합계 오른쪽은 동행자가 있으면 정산하기, 혼자면 동행자 추가.
@@ -100,9 +378,6 @@ class _SummaryCard extends ConsumerWidget {
   const _SummaryCard({required this.expenses});
 
   final List<Expense> expenses;
-
-  /// 회색 바탕에서 또렷이 보이도록 primaryLight보다 조금 진한 초록 (primary 35% + 흰색).
-  static const _tint = Color(0xFFE6F5E0);
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -127,7 +402,7 @@ class _SummaryCard extends ConsumerWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
       decoration: BoxDecoration(
-        color: _tint,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(24),
       ),
       child: Column(
@@ -162,10 +437,12 @@ class _SummaryCard extends ConsumerWidget {
                     if (members != null)
                       members.length > 1
                           ? _SettleButton(
+                              icon: AppIcons.coins,
                               label: '정산하기',
                               onTap: () => context.push('/settlement'),
                             )
                           : _SettleButton(
+                              icon: AppIcons.userPlus,
                               label: '동행자 추가',
                               onTap: () => showMembersSheet(context),
                             ),
@@ -194,7 +471,11 @@ class _SummaryCard extends ConsumerWidget {
               ],
             ),
           ),
-          const SizedBox(height: 16),
+          // 합계와 입력 버튼 사이를 가는 회색 줄로 나눈다.
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 16),
+            child: Divider(height: 1, thickness: 1, color: AppColors.border),
+          ),
           const _QuickActions(),
         ],
       ),
@@ -202,31 +483,36 @@ class _SummaryCard extends ConsumerWidget {
   }
 }
 
-/// 합계 오른쪽의 글자 버튼.
+/// 합계 오른쪽의 작은 알약 버튼. 무채색 요약 칸에서 눈에 띄도록 연한 노랑.
 class _SettleButton extends StatelessWidget {
-  const _SettleButton({required this.label, required this.onTap});
+  const _SettleButton(
+      {required this.icon, required this.label, required this.onTap});
 
+  final IconData icon;
   final String label;
   final VoidCallback onTap;
+
+  static const _yellow = Color(0xFFFFEFA3);
+  static const _ink = Color(0xFF5C4A00);
 
   @override
   Widget build(BuildContext context) {
     return Pressable(
       onTap: onTap,
-      child: Padding(
-        // 글자보다 누르는 자리를 넓게 잡는다.
-        padding: const EdgeInsets.fromLTRB(12, 10, 0, 10),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(12, 8, 14, 8),
+        decoration: BoxDecoration(
+          color: _yellow,
+          borderRadius: BorderRadius.circular(20),
+        ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            Icon(icon, size: 18, color: _ink),
+            const SizedBox(width: 6),
             Text(label,
                 style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.primaryDeep)),
-            const SizedBox(width: 2),
-            const Icon(AppIcons.chevronRight,
-                size: 14, color: AppColors.primaryDeep),
+                    fontSize: 15, fontWeight: FontWeight.w700, color: _ink)),
           ],
         ),
       ),
@@ -235,8 +521,12 @@ class _SettleButton extends StatelessWidget {
 }
 
 /// 스캔 말고 지출을 남기는 다른 길: 직접 입력, 앨범, 메뉴판.
+/// 버튼은 무채색으로 두어 합계 옆 정산하기만 색이 있게 한다.
 class _QuickActions extends ConsumerWidget {
-  const _QuickActions();
+  const _QuickActions({this.color = AppColors.background});
+
+  /// 버튼 바탕. 흰 요약 칸 안에서는 회색, 회색 화면 위(지출이 없을 때)에서는 흰색.
+  final Color color;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -245,18 +535,21 @@ class _QuickActions extends ConsumerWidget {
         _QuickAction(
           icon: AppIcons.note,
           label: '직접 입력하기',
+          color: color,
           onTap: () => enterExpenseManually(context, ref),
         ),
         const SizedBox(width: 8),
         _QuickAction(
           icon: AppIcons.album,
           label: '앨범에서 불러오기',
+          color: color,
           onTap: () => captureReceipt(context, ref, fromGallery: true),
         ),
         const SizedBox(width: 8),
         _QuickAction(
           icon: AppIcons.menu,
           label: '메뉴판 주문',
+          color: color,
           onTap: () => context.push('/menus'),
         ),
       ],
@@ -266,17 +559,21 @@ class _QuickActions extends ConsumerWidget {
 
 class _QuickAction extends StatelessWidget {
   const _QuickAction(
-      {required this.icon, required this.label, required this.onTap});
+      {required this.icon,
+      required this.label,
+      required this.color,
+      required this.onTap});
 
   final IconData icon;
   final String label;
+  final Color color;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     return Expanded(
       child: Material(
-        color: AppColors.surface,
+        color: color,
         borderRadius: BorderRadius.circular(16),
         child: InkWell(
           onTap: onTap,
@@ -285,7 +582,7 @@ class _QuickAction extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(6, 14, 6, 12),
             child: Column(
               children: [
-                Icon(icon, size: 24, color: AppColors.primaryDeep),
+                Icon(icon, size: 24, color: AppColors.textSub),
                 const SizedBox(height: 6),
                 FittedBox(
                   fit: BoxFit.scaleDown,
@@ -441,7 +738,7 @@ class _EmptyView extends StatelessWidget {
                 style: TextStyle(fontSize: 15, color: AppColors.textHint),
               ),
               const SizedBox(height: 28),
-              const _QuickActions(),
+              const _QuickActions(color: AppColors.surface),
             ],
           ),
         ),

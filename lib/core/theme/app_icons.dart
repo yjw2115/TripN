@@ -40,6 +40,7 @@ abstract final class AppIcons {
   static const adjust = PhosphorIconsRegular.slidersHorizontal;
   static const transfer = PhosphorIconsBold.arrowsLeftRight;
   static const scan = PhosphorIconsBold.scan;
+  static const search = PhosphorIconsBold.magnifyingGlass;
 
   // 사물
   static const receipt = PhosphorIconsRegular.receipt;
